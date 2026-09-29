@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "generations": 36,
+  "population": 24,
+  "trainedAt": "2026-09-29",
+  "note": "Evolved by scripts/train-bots.ts through self-play. Re-run `npm run train` to retrain.",
+  "baselineAverageRank": 7.21,
+  "brains": [
+    {
+      "name": "Harvester A",
+      "fitness": 1.193,
+      "genome": {
+        "valueExponent": 0.8114,
+        "distanceBias": 18.6151,
+        "searchRadius": 179.8391,
+        "hysteresis": 0,
+        "microWeight": 4,
+        "microRadius": 0.8,
+        "huntDrive": 0.0458,
+        "huntMargin": 1.241,
+        "huntGiveUp": 9.6987,
+        "interceptLead": 0.507,
+        "fleeRadius": 0.3,
+        "fleeFoodMix": 1.0316,
+        "dangerAversion": 1.8844,
+        "contestAversion": 2.013,
+        "edgeAversion": 1.9986,
+        "endgameAggression": 1.3287
+      }
+    },
+    {
+      "name": "Harvester B",
+      "fitness": 0.899,
+      "genome": {
+        "valueExponent": 0.8868,
+        "distanceBias": 20.2989,
+        "searchRadius": 161.9802,
+        "hysteresis": 0.0048,
+        "microWeight": 3.694,
+        "microRadius": 0.8111,
+        "huntDrive": 0.1395,
+        "huntMargin": 1.1537,
+        "huntGiveUp": 7.9857,
+        "interceptLead": 0.5101,
+        "fleeRadius": 0.3,
+        "fleeFoodMix": 1.1609,
+        "dangerAversion": 1.1965,
+        "contestAversion": 1.6262,
+        "edgeAversion": 2.4093,
+        "endgameAggression": 0.912
+      }
+    },
+    {
+      "name": "Harvester C",
+      "fitness": 0.87,
+      "genome": {
+        "valueExponent": 0.8839,
+        "distanceBias": 23.9958,
+        "searchRadius": 166.8692,
+        "hysteresis": 0.0036,
+        "microWeight": 3.7163,
+        "microRadius": 0.8195,
+        "huntDrive": 0.1041,
+        "huntMargin": 1.1505,
+        "huntGiveUp": 8.8177,
+        "interceptLead": 0.5349,
+        "fleeRadius": 0.3,
+        "fleeFoodMix": 1.2005,
+        "dangerAversion": 1.0407,
+        "contestAversion": 2.1375,
+        "edgeAversion": 2.3756,
+        "endgameAggression": 1.2565
+      }
+    },
+    {
+      "name": "Harvester D",
+      "fitness": 0.851,
+      "genome": {
+        "valueExponent": 0.9133,
+        "distanceBias": 27.994,
+        "searchRadius": 171.1221,
+        "hysteresis": 0.0511,
+        "microWeight": 3.8107,
+        "microRadius": 0.8235,
+        "huntDrive": 0,
+        "huntMargin": 1.1781,
+        "huntGiveUp": 8.4988,
+        "interceptLead": 0.5012,
+        "fleeRadius": 0.5966,
+        "fleeFoodMix": 1.3524,
+        "dangerAversion": 1.568,
+        "contestAversion": 1.9815,
+        "edgeAversion": 1.6315,
+        "endgameAggression": 1.1811
+      }
+    },
+    {
+      "name": "Harvester E",
+      "fitness": 0.851,
+      "genome": {
+        "valueExponent": 0.7893,
+        "distanceBias": 28.0509,
+        "searchRadius": 158.7428,
+        "hysteresis": 0.0078,
+        "microWeight": 3.9116,
+        "microRadius": 0.8033,
+        "huntDrive": 0,
+        "huntMargin": 1.0921,
+        "huntGiveUp": 8.3913,
+        "interceptLead": 0.5163,
+        "fleeRadius": 0.3392,
+        "fleeFoodMix": 1.0842,
+        "dangerAversion": 0.6948,
+        "contestAversion": 2.1629,
+        "edgeAversion": 2.0859,
+        "endgameAggression": 1.4162
+      }
+    }
+  ]
+}

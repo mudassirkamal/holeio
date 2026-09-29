@@ -1,0 +1,162 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: var(--font-lilita), "Arial Rounded MT Bold", system-ui, sans-serif;
+  --font-body: var(--font-nunito), system-ui, sans-serif;
+  --color-ink: #0b0a1f;
+  --color-night: #15123a;
+  --color-panel: rgb(20 17 52 / 0.72);
+  --color-hot: #ff3d7f;
+  --color-sun: #ffb020;
+  --color-sky: #3ac8ff;
+  --color-lime: #7cf05a;
+  --animate-float: float 3.2s ease-in-out infinite;
+  --animate-pop: pop 0.35s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+  --animate-rise: rise 0.45s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  --animate-shine: shine 3s linear infinite;
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+  @keyframes pop {
+    0% { transform: scale(0.4); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  @keyframes rise {
+    0% { transform: translateY(24px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
+  }
+  @keyframes shine {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
+  }
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #0b0a1f;
+  color: #fff;
+  font-family: var(--font-body);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  overscroll-behavior: none;
+}
+
+canvas {
+  display: block;
+  touch-action: none;
+}
+
+.text-outline {
+  text-shadow:
+    0 3px 0 rgb(0 0 0 / 0.35),
+    0 0 18px rgb(0 0 0 / 0.25);
+}
+
+.panel {
+  background: linear-gradient(160deg, rgb(38 32 92 / 0.82), rgb(16 13 44 / 0.86));
+  border: 1px solid rgb(255 255 255 / 0.12);
+  box-shadow:
+    0 20px 50px -20px rgb(0 0 0 / 0.7),
+    inset 0 1px 0 rgb(255 255 255 / 0.12);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.btn-3d {
+  position: relative;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s ease;
+  box-shadow:
+    0 6px 0 var(--btn-shadow, #7a1240),
+    0 12px 24px -8px rgb(0 0 0 / 0.6),
+    inset 0 2px 0 rgb(255 255 255 / 0.35);
+}
+.btn-3d:hover {
+  filter: brightness(1.08);
+}
+.btn-3d:active {
+  transform: translateY(4px);
+  box-shadow:
+    0 2px 0 var(--btn-shadow, #7a1240),
+    0 6px 14px -6px rgb(0 0 0 / 0.6),
+    inset 0 2px 0 rgb(255 255 255 / 0.35);
+}
+.btn-3d:disabled {
+  filter: grayscale(0.7) brightness(0.8);
+  cursor: not-allowed;
+}
+
+.hole-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-family: var(--font-display);
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  color: #fff;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--label-color, #3a86ff) 55%, rgb(0 0 0 / 0.55));
+  border: 2px solid color-mix(in srgb, var(--label-color, #3a86ff) 80%, white);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.35);
+  transition: opacity 0.2s;
+  will-change: transform;
+}
+.hole-label.is-player {
+  font-size: 17px;
+  box-shadow:
+    0 0 0 3px rgb(255 255 255 / 0.85),
+    0 4px 16px rgb(0 0 0 / 0.4);
+}
+.hole-label-crown {
+  font-size: 16px;
+  filter: drop-shadow(0 2px 2px rgb(0 0 0 / 0.4));
+}
+
+.score-popup {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-display);
+  font-size: 26px;
+  color: #fff;
+  text-shadow:
+    0 3px 0 rgb(0 0 0 / 0.35),
+    0 0 12px rgb(255 255 255 / 0.4);
+  pointer-events: none;
+  animation: popup-rise 1.1s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+  white-space: nowrap;
+}
+.score-popup.is-combo {
+  font-size: 32px;
+  color: #ffd23f;
+}
+.score-popup.is-kill {
+  font-size: 30px;
+  color: #ff5c8a;
+}
+@keyframes popup-rise {
+  0% { opacity: 0; transform: translate(-50%, -20%) scale(0.6); }
+  15% { opacity: 1; transform: translate(-50%, -70%) scale(1.15); }
+  100% { opacity: 0; transform: translate(-50%, -260%) scale(1); }
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgb(255 255 255 / 0.25);
+  border-radius: 999px;
+}
