@@ -6,7 +6,7 @@ import type { FeedItem, HudSnapshot, MatchResult, SessionClip } from "@/game/eng
 import { isMobileDevice } from "@/game/render/quality";
 import { enterFullscreen } from "@/components/ui/fullscreen";
 
-export type Screen = "menu" | "levels" | "quickplay" | "skins" | "settings" | "multiplayer" | "lobby" | "playing";
+export type Screen = "menu" | "levels" | "daily" | "quickplay" | "skins" | "settings" | "multiplayer" | "lobby" | "playing";
 
 export interface FeedEntry {
   id: number;

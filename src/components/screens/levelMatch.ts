@@ -1,5 +1,6 @@
 import type { LevelDef } from "@/game/config/levels";
 import type { MatchConfig } from "@/game/engine/GameSession";
+import { levelBoard } from "@/game/leaderboard/boards";
 
 export const levelMatch = (level: LevelDef): MatchConfig => ({
   mode: level.mode,
@@ -11,4 +12,5 @@ export const levelMatch = (level: LevelDef): MatchConfig => ({
   difficulty: level.difficulty,
   powerUps: false,
   levelId: level.id,
+  board: levelBoard(level.id),
 });

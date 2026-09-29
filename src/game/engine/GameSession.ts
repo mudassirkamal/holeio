@@ -39,6 +39,8 @@ export interface MatchConfig {
   /** Spawn power-up pickups (campaign levels are balanced without them). */
   powerUps: boolean;
   levelId: number | null;
+  /** Global leaderboard the final score goes to (daily challenge, campaign level). */
+  board?: string;
   /** Present for online matches. */
   net?: NetMatch;
 }

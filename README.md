@@ -34,6 +34,10 @@ Built with **Next.js 16**, **React 19**, **Three.js** and **TypeScript**.
   moment yourself; share straight to WhatsApp, Instagram and co. from the results screen
   (or save the file).
 - **20 campaign levels** with 1–3 stars each, plus a fully configurable Quick Play.
+- **Daily Challenge and global leaderboards**: one city a day, the same for everyone
+  (same seed, city, bots and power-ups), with a world ranking that resets at midnight
+  UTC. Every campaign level has its own world board too. Your best scores are always
+  kept on the device; the world boards switch on once a database is connected (below).
 - **20 skins** — solid, gradient, stripes, polka, checkered, neon pulse, lava, toxic,
   ice, electric, matrix, rainbow, galaxy and gold — with particle trails, unlocked with
   coins, stars or level progress.
@@ -136,6 +140,35 @@ then copy the *Turn Token ID* into `CLOUDFLARE_TURN_KEY_ID` and the *API Token* 
 When a relay is configured, the Multiplayer screen shows **"Relay server on"**. Without
 one, the game still works for everyone who can connect directly.
 
+## Global leaderboards
+
+Boards are keys shared by the game and the server: `daily-YYYY-MM-DD` for the Daily
+Challenge and `level-N` for campaign levels (`src/game/leaderboard/boards.ts`). Browsers
+only talk to `/api/leaderboard` (`src/app/api/leaderboard/`); the database key never
+leaves the server.
+
+Setup (Supabase, free tier is plenty):
+
+1. Run [`supabase/leaderboard.sql`](supabase/leaderboard.sql) once in the project's SQL
+   editor. It creates one `hole_rush_scores` table, closed to API keys by row level
+   security, and three functions the server calls (`hole_rush_submit`, `hole_rush_top`,
+   `hole_rush_standing`). Everything is prefixed `hole_rush_`, so it can share a project
+   with other apps.
+2. Set `SUPABASE_URL` and `SUPABASE_ANON_KEY` (the anon or publishable key) in the
+   Vercel project's environment variables and redeploy. Optionally set
+   `LEADERBOARD_SECRET` to any long random string for signing match tickets.
+
+Until then `GET /api/leaderboard` answers `{ "configured": false }` and the game hides
+the world boards.
+
+Keeping scores honest: when a leaderboard match starts, the game gets a signed ticket
+(HMAC) and hands it back with the score. The server rejects forged tickets, matches
+shorter than 20 s, and scores higher than a real match of that length can produce; the
+database keeps each player's best score per board and validates names and boards
+again. Players are identified by an anonymous random id stored on their device, which
+the boards never reveal. This stops casual cheating and spam, not a determined attacker
+who reverse-engineers the game — that would take server-side replays of every match.
+
 ## How to play
 
 - Move the mouse — your hole follows the cursor (or use WASD / arrows, or drag anywhere
@@ -174,7 +207,7 @@ occasional distraction.
 ```
 src/
   app/                  Next.js app router (layout, page, global styles,
-                        api/ice: TURN relay credentials)
+                        api/ice: TURN relay credentials, api/leaderboard)
   components/           React UI: menus, level select, skin shop, HUD, results
   store/                Zustand stores (persisted profile, app/session state)
   game/
@@ -187,8 +220,11 @@ src/
     engine/             Game session loop tying simulation, rendering and UI
     net/                Rooms/lobby (PeerJS), host & client sync, voice chat
     clips/              Rolling WebCodecs recorder, highlight picking, clip overlay
+    leaderboard/        Board keys, Daily Challenge settings, validation rules
     input/              Mouse / keyboard / touch input
     audio/              WebAudio synthesizer
+supabase/
+  leaderboard.sql       Leaderboard table and functions (run once in Supabase)
 scripts/
   simulate.ts           Headless match runner for balancing
   balance.ts            Plays every campaign level with a player proxy

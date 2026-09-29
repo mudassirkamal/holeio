@@ -16,6 +16,7 @@ import PauseMenu from "./game/PauseMenu";
 import Results from "./game/Results";
 import { levelMatch } from "./screens/levelMatch";
 import LevelSelect from "./screens/LevelSelect";
+import Daily from "./screens/Daily";
 import Lobby from "./screens/Lobby";
 import MainMenu from "./screens/MainMenu";
 import Multiplayer from "./screens/Multiplayer";
@@ -67,6 +68,7 @@ export default function GameApp() {
         <div className={`safe-inset absolute ${screen === "playing" ? "pointer-events-none" : ""}`}>
           {screen === "menu" && <MainMenu />}
           {screen === "levels" && <LevelSelect />}
+          {screen === "daily" && <Daily />}
           {screen === "quickplay" && <QuickPlay />}
           {screen === "skins" && <SkinShop />}
           {screen === "settings" && <Settings />}

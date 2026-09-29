@@ -4,15 +4,17 @@ import { LEVELS } from "@/game/config/levels";
 import { SKIN_BY_ID } from "@/game/config/skins";
 import { TEAMS } from "@/game/config/teams";
 import type { MatchResult } from "@/game/engine/types";
+import { parseBoard } from "@/game/leaderboard/boards";
 import { useApp } from "@/store/app";
+import { useLeaderboard } from "@/store/leaderboard";
 import { useNet } from "@/store/net";
+import { useProfile } from "@/store/profile";
 import { Stars } from "../ui/Badges";
 import { Button } from "../ui/Button";
 import { biteName } from "@/game/config/objectNames";
 import { levelMatch } from "../screens/levelMatch";
 import ClipCard from "./ClipCard";
 import TeamBar from "./TeamBar";
-
 
 function headline({ mode, rank, percent, eliminated, teams }: MatchResult, won: boolean) {
   if (teams) return teams.winner < 0 ? "IT'S A DRAW!" : `${TEAMS[teams.winner].name.toUpperCase()} TEAM WINS!`;
@@ -22,12 +24,30 @@ function headline({ mode, rank, percent, eliminated, teams }: MatchResult, won: 
   return `${rank}${rank === 2 ? "nd" : rank === 3 ? "rd" : "th"} PLACE`;
 }
 
+/** Where the score landed on the global leaderboard (or the local best while it's off). */
+function WorldRank({ board }: { board: string }) {
+  const submission = useLeaderboard((s) => s.submission);
+  const best = useProfile((s) => s.bestScores[board]);
+  if (submission?.board !== board) return null;
+  const box = "mt-3 rounded-2xl bg-black/30 px-3 py-2 font-extrabold animate-pop short:mt-2 short:py-1.5";
+  if (submission.status === "sending") return <div className={`${box} text-white/60`}>🌍 Sending your score…</div>;
+  if (submission.status === "unavailable") return best ? <div className={box}>Your best: {best.toLocaleString()}</div> : null;
+  const { rank, best: worldBest, total } = submission.standing;
+  return (
+    <div className={box}>
+      🌍 World rank <span className="font-display text-2xl text-[#ffe066]">#{rank.toLocaleString()}</span> of {total.toLocaleString()}
+      <span className="text-white/60"> · your best {worldBest.toLocaleString()}</span>
+    </div>
+  );
+}
+
 export default function Results() {
   const result = useApp((s) => s.result);
   const reward = useApp((s) => s.reward);
   const match = useApp((s) => s.match);
   const startMatch = useApp((s) => s.startMatch);
   const quit = useApp((s) => s.quitToMenu);
+  const go = useApp((s) => s.go);
   const clips = useApp((s) => s.clips);
   const room = useNet((s) => s.room);
   const leaveRoom = useNet((s) => s.leave);
@@ -36,6 +56,8 @@ export default function Results() {
 
   const level = match.levelId !== null ? LEVELS.find((l) => l.id === match.levelId) : undefined;
   const nextLevel = level ? LEVELS.find((l) => l.id === level.id + 1) : undefined;
+  const board = match.board ? parseBoard(match.board) : null;
+  const daily = board?.kind === "daily" ? board : null;
   const { won } = reward;
   const stats: [string, string][] = [
     ["Score", result.score.toLocaleString()],
@@ -53,6 +75,7 @@ export default function Results() {
       <div className="panel m-auto w-full max-w-lg rounded-3xl p-6 text-center animate-pop short:grid short:max-w-3xl short:grid-cols-2 short:items-center short:gap-4 short:p-4">
         <div>
           {level && <div className="text-sm font-black uppercase tracking-widest text-white/55">Level {level.id} · {level.name}</div>}
+          {daily && <div className="text-sm font-black uppercase tracking-widest text-white/55">🏆 Daily Challenge · {daily.day}</div>}
           <h2 className={`font-display text-5xl text-outline sm:text-6xl short:text-4xl ${won ? "text-[#ffe066]" : "text-white"}`}>
             {headline(result, won)}
           </h2>
@@ -98,6 +121,7 @@ export default function Results() {
             +¢{reward.coins}
             {reward.newBest && <span className="rounded-full bg-lime px-2 py-0.5 text-sm text-ink">NEW BEST</span>}
           </div>
+          {match.board && <WorldRank board={match.board} />}
 
           {online ? (
             <div className="mt-5 flex flex-col gap-2 sm:flex-row short:mt-3">
@@ -119,9 +143,21 @@ export default function Results() {
               <Button variant="ghost" className="flex-1" onClick={quit}>
                 Menu
               </Button>
-              <Button variant="secondary" className="flex-1" onClick={() => startMatch({ ...match, seed: level ? match.seed : Math.floor(Math.random() * 1e9) })}>
+              <Button variant="secondary" className="flex-1" onClick={() => startMatch({ ...match, seed: match.board ? match.seed : Math.floor(Math.random() * 1e9) })}>
                 ↻ Retry
               </Button>
+              {daily && (
+                <Button
+                  variant="gold"
+                  className="flex-1"
+                  onClick={() => {
+                    quit();
+                    go("daily");
+                  }}
+                >
+                  🏆 Ranking
+                </Button>
+              )}
               {won && nextLevel && (
                 <Button className="flex-[1.4]" onClick={() => startMatch(levelMatch(nextLevel))}>
                   Next ▶

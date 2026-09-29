@@ -18,6 +18,10 @@ export interface Settings {
 
 interface ProfileState {
   playerName: string;
+  /** Anonymous id for the global leaderboards (kept private: boards never show it). */
+  playerId: string;
+  /** Best score per leaderboard board (daily challenges and levels). */
+  bestScores: Record<string, number>;
   coins: number;
   selectedSkin: SkinId;
   ownedSkins: SkinId[];
@@ -32,12 +36,27 @@ interface ProfileState {
   addCoins: (amount: number) => void;
   recordLevel: (levelId: number, stars: number) => void;
   recordGame: (won: boolean) => void;
+  recordBest: (board: string, score: number) => void;
   updateSettings: (patch: Partial<Settings>) => void;
   resetProgress: () => void;
 }
 
+/** A random v4 UUID; `crypto.randomUUID` needs HTTPS, which offline LAN play may not have. */
+function newPlayerId() {
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const hex = Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+/** Old daily challenges drop out of the saved bests after a week. */
+const KEEP_DAILY_MS = 7 * 86_400_000;
+
 const initialProfile = () => ({
   playerName: "You",
+  playerId: newPlayerId(),
+  bestScores: {} as Record<string, number>,
   coins: 0,
   selectedSkin: DEFAULT_SKIN,
   ownedSkins: ["classic", "mint"] as SkinId[],
@@ -66,8 +85,14 @@ export const useProfile = create<ProfileState>()(
       recordLevel: (levelId, stars) =>
         set((s) => ({ levelStars: { ...s.levelStars, [levelId]: Math.max(s.levelStars[levelId] ?? 0, stars) } })),
       recordGame: (won) => set((s) => ({ gamesPlayed: s.gamesPlayed + 1, wins: s.wins + (won ? 1 : 0) })),
+      recordBest: (board, score) =>
+        set((s) => {
+          const cutoff = Date.now() - KEEP_DAILY_MS;
+          const kept = Object.entries(s.bestScores).filter(([key]) => !key.startsWith("daily-") || Date.parse(key.slice(6)) >= cutoff);
+          return { bestScores: { ...Object.fromEntries(kept), [board]: Math.max(s.bestScores[board] ?? 0, score) } };
+        }),
       updateSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),
-      resetProgress: () => set({ ...initialProfile(), playerName: get().playerName, settings: get().settings }),
+      resetProgress: () => set({ ...initialProfile(), playerName: get().playerName, playerId: get().playerId, settings: get().settings }),
     }),
     {
       name: "hole-rush-profile",

@@ -3,10 +3,12 @@
 import { useState } from "react";
 import { DIFFICULTY_INFO, LEVELS, LEVELS_PER_WORLD, MODE_INFO, type LevelDef } from "@/game/config/levels";
 import { THEMES, THEME_ORDER } from "@/game/config/themes";
+import { levelBoard } from "@/game/leaderboard/boards";
 import { useApp } from "@/store/app";
 import { highestUnlockedLevel, useProfile } from "@/store/profile";
 import { Stars } from "../ui/Badges";
 import { Button } from "../ui/Button";
+import { GlobalBoard } from "../ui/GlobalBoard";
 import { ScreenHeader } from "../ui/ScreenHeader";
 import { levelMatch } from "./levelMatch";
 
@@ -26,6 +28,7 @@ function goalText(level: LevelDef) {
 
 export default function LevelSelect() {
   const levelStars = useProfile((s) => s.levelStars);
+  const bestScores = useProfile((s) => s.bestScores);
   const startMatch = useApp((s) => s.startMatch);
   const unlocked = highestUnlockedLevel(levelStars);
   const [world, setWorld] = useState(() => Math.floor((unlocked - 1) / LEVELS_PER_WORLD));
@@ -95,8 +98,8 @@ export default function LevelSelect() {
       </div>
 
       {selected && (
-        <div className="fixed inset-0 z-20 grid place-items-center bg-black/60 p-4" onClick={() => setSelected(null)}>
-          <div className="panel w-full max-w-md rounded-3xl p-6 animate-pop" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-20 flex overflow-y-auto bg-black/60 p-4" onClick={() => setSelected(null)}>
+          <div className="panel m-auto w-full max-w-md rounded-3xl p-6 animate-pop short:p-4" onClick={(e) => e.stopPropagation()}>
             <div className="text-sm font-black uppercase tracking-widest text-white/50">Level {selected.id}</div>
             <h2 className="font-display text-4xl">{selected.name}</h2>
             <div className="mt-3 flex flex-wrap gap-2 text-sm font-extrabold">
@@ -111,6 +114,12 @@ export default function LevelSelect() {
               <div className="text-xs font-black uppercase tracking-widest text-white/50">Goal</div>
               <div className="font-bold">{goalText(selected)}</div>
               <div className="mt-2 text-sm font-bold text-[#ffd65c]">Reward up to ¢{selected.reward} + performance bonus</div>
+              {bestScores[levelBoard(selected.id)] !== undefined && (
+                <div className="mt-1 text-sm font-bold text-white/70">Your best score: {bestScores[levelBoard(selected.id)].toLocaleString()}</div>
+              )}
+            </div>
+            <div className="mt-3">
+              <GlobalBoard board={levelBoard(selected.id)} rows={5} />
             </div>
             <div className="mt-5 flex gap-3">
               <Button variant="ghost" className="flex-1" onClick={() => setSelected(null)}>

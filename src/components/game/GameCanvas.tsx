@@ -10,6 +10,7 @@ import { GameSession, createRenderer } from "@/game/engine/GameSession";
 import { teammatePeerIds } from "@/game/net/protocol";
 import { computeReward } from "@/game/engine/rewards";
 import { useApp } from "@/store/app";
+import { useLeaderboard } from "@/store/leaderboard";
 import { useNet } from "@/store/net";
 import { useProfile } from "@/store/profile";
 import { sessionRef } from "./sessionRef";
@@ -69,6 +70,10 @@ export default function GameCanvas() {
         if (current.levelId !== null) store.recordLevel(current.levelId, reward.stars);
         store.addCoins(reward.coins);
         store.recordGame(reward.won);
+        if (current.board) {
+          store.recordBest(current.board, result.score);
+          void useLeaderboard.getState().submit(current.board, result.score);
+        }
         window.setTimeout(() => {
           useApp.getState().finish(result, { ...reward, newBest: reward.stars > previous });
         }, 900);
@@ -80,6 +85,7 @@ export default function GameCanvas() {
     });
     sessionRef.current = session;
     session.start();
+    if (playing && app.match?.board) useLeaderboard.getState().startRun(app.match.board);
 
     // Team matches switch voice chat to team-only; the lobby hears everyone again.
     const net = playing ? app.match?.net : undefined;
