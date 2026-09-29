@@ -11,6 +11,10 @@ Built with **Next.js 16**, **React 19**, **Three.js** and **TypeScript**.
 - **Five hand-styled worlds, generated procedurally**: Metro City, Sunset Suburbs,
   Neon Nights, Frost Town and Palm Beach — roads with traffic that turns at
   intersections, pedestrians, parks, plazas, parking lots, beaches and downtown towers.
+- **Themed city walls** around every map: a concrete hazard barrier in Metro City,
+  a white picket fence in the Suburbs, a glowing laser fence in Neon Nights, a snowy
+  log fence in Frost Town and a rope boardwalk fence in Palm Beach — each with corner
+  towers and flag or lamp posts. Holes stay inside the walls.
 - **Three modes**: Classic (biggest hole when time runs out, respawn when eaten),
   Battle Royale (no respawns, last hole standing) and Solo (swallow a % of the city).
 - **20 campaign levels** with 1–3 stars each, plus a fully configurable Quick Play.

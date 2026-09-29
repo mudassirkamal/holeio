@@ -7,6 +7,8 @@ export const CITY = {
   sidewalkWidth: 3,
   cellSize: 8,
   valueCellSize: 10,
+  /** Distance of the perimeter fence beyond the outer edge of the ring road. */
+  borderOffset: 1.6,
 } as const;
 
 /** Hole growth & movement tuning. */

@@ -121,8 +121,11 @@ export function createCityMaterial(lighting: ThemeLighting) {
           vec3 rel = vCityWorld - cameraPosition;
           float along = dot(rel, ray);
           if (along > 0.0 && along < focusDistance - uFocusRadius - 1.5) {
+            // Only fragments inside the camera→hole view cone actually hide the hole.
             float off = length(rel - ray * along);
-            float fade = 1.0 - smoothstep(uFocusRadius, uFocusRadius + 3.0, off);
+            float cone = along / focusDistance;
+            float limit = uFocusRadius * cone;
+            float fade = 1.0 - smoothstep(limit, limit + 2.0 * cone + 0.5, off);
             ivec2 cell = ivec2(mod(gl_FragCoord.xy, 4.0));
             if (fade * 0.82 > (BAYER[cell.x + cell.y * 4] + 0.5) / 16.0) discard;
           }

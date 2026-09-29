@@ -14,6 +14,7 @@ import { THEMES, type ThemeDef } from "../config/themes";
 import type { Hole } from "../core/entities";
 import type { GameEvent } from "../core/events";
 import type { World } from "../core/World";
+import { createBorder } from "./border";
 import { CameraRig } from "./CameraRig";
 import { ParticleSystem } from "./effects/ParticleSystem";
 import { Shockwaves } from "./effects/Shockwaves";
@@ -52,6 +53,7 @@ export class SceneView {
   private readonly ground: ReturnType<typeof createGround>;
   private readonly objects: ObjectLayer;
   private readonly scenery: ReturnType<typeof createScenery>;
+  private readonly border: ReturnType<typeof createBorder>;
   private readonly cityMaterial: ReturnType<typeof createCityMaterial>;
   private readonly holeViews: HoleView[];
   private readonly dust: ParticleSystem;
@@ -91,6 +93,8 @@ export class SceneView {
     this.scene.add(this.objects.group);
     this.scenery = createScenery(world, this.theme, this.cityMaterial.material, q.shadows);
     this.scene.add(this.scenery.group);
+    this.border = createBorder(world.half, this.theme, this.cityMaterial.material, q.shadows);
+    this.scene.add(this.border.group);
 
     this.holeViews = world.holes.map((hole) => {
       const view = new HoleView(hole.skinId);
@@ -281,6 +285,7 @@ export class SceneView {
     this.ground.dispose();
     this.objects.dispose();
     this.scenery.dispose();
+    this.border.dispose();
     this.cityMaterial.material.dispose();
     for (const v of this.holeViews) v.dispose();
     this.dust.dispose();

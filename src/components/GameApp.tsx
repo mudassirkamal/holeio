@@ -2,13 +2,17 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useSyncExternalStore } from "react";
+import { createBots } from "@/game/ai/roster";
 import { audio } from "@/game/audio/AudioEngine";
+import { LEVELS } from "@/game/config/levels";
+import { Rng } from "@/game/core/rng";
 import { useApp } from "@/store/app";
 import { useProfile } from "@/store/profile";
 import Hud from "./game/Hud";
 import { sessionRef } from "./game/sessionRef";
 import PauseMenu from "./game/PauseMenu";
 import Results from "./game/Results";
+import { levelMatch } from "./screens/levelMatch";
 import LevelSelect from "./screens/LevelSelect";
 import MainMenu from "./screens/MainMenu";
 import QuickPlay from "./screens/QuickPlay";
@@ -33,7 +37,8 @@ export default function GameApp() {
   useEffect(() => {
     if (process.env.NODE_ENV === "development") {
       // Dev-only handle for inspecting/steering a running game from the console.
-      (window as unknown as { __debug: unknown }).__debug = { useApp, useProfile, sessionRef };
+      const brain = () => createBots(1, "hard", new Rng(Date.now()))[0].controller;
+      (window as unknown as { __debug: unknown }).__debug = { useApp, useProfile, sessionRef, levels: LEVELS, levelMatch, brain };
     }
     const unlock = () => audio.unlock();
     window.addEventListener("pointerdown", unlock, { once: true });

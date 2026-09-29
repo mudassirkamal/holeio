@@ -115,8 +115,10 @@ function paintRoads(p: Painter, layout: CityLayout, theme: ThemeDef) {
   const pal = theme.palette;
   const h = layout.half;
 
-  for (const x of layout.roadXs) fillRect(p, { x0: x - hw, x1: x + hw, z0: -h - 20, z1: h + 20 }, pal.asphalt);
-  for (const z of layout.roadZs) fillRect(p, { x0: -h - 20, x1: h + 20, z0: z - hw, z1: z + hw }, pal.asphalt);
+  for (const x of layout.roadXs) fillRect(p, { x0: x - hw, x1: x + hw, z0: -h, z1: h }, pal.asphalt);
+  for (const z of layout.roadZs) fillRect(p, { x0: -h, x1: h, z0: z - hw, z1: z + hw }, pal.asphalt);
+  // Curb along the city edge, where the perimeter fence stands.
+  strokeRect(p, { x0: -h - 0.3, z0: -h - 0.3, x1: h + 0.3, z1: h + 0.3 }, pal.curb, 0.6);
 
   // Dashed center lines between intersections.
   ctx.save();

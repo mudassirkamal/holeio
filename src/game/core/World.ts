@@ -200,7 +200,8 @@ export class World {
     hole.x += hole.vx * dt;
     hole.z += hole.vz * dt;
 
-    const limit = this.half;
+    // Keep the whole rim inside the perimeter fence.
+    const limit = Math.max(0, Math.min(this.half, this.half + CITY.borderOffset - hole.radius * 1.05));
     if (hole.x < -limit || hole.x > limit) {
       hole.x = clamp(hole.x, -limit, limit);
       hole.vx = 0;
