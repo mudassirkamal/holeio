@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { haptics } from "@/game/input/haptics";
 import type { QualityLevel } from "@/game/render/quality";
 import { useProfile } from "@/store/profile";
 import { Button } from "../ui/Button";
@@ -34,7 +35,7 @@ export default function Settings() {
   const [confirmReset, setConfirmReset] = useState(false);
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-y-auto p-4 scrollbar-thin sm:p-8">
+    <div className="flex h-full flex-col gap-4 overflow-y-auto p-4 scrollbar-thin sm:p-8 short:gap-3 short:p-3">
       <ScreenHeader title="Settings" />
       <div className="mx-auto grid w-full max-w-3xl gap-4 md:grid-cols-2">
         <section className="panel rounded-3xl p-5">
@@ -50,12 +51,14 @@ export default function Settings() {
               </button>
             ))}
           </div>
+          <p className="mt-3 text-sm font-bold text-white/60">Resolution adjusts automatically to keep the game smooth.</p>
         </section>
         <section className="panel flex flex-col gap-2 rounded-3xl p-5">
           <h2 className="mb-1 font-display text-2xl">Game</h2>
           <Toggle label="Sound effects" value={settings.sound} onChange={(sound) => update({ sound })} />
           <Toggle label="Music" value={settings.music} onChange={(music) => update({ music })} />
           <Toggle label="Minimap" value={settings.minimap} onChange={(minimap) => update({ minimap })} />
+          {haptics.supported && <Toggle label="Vibration" value={settings.vibration} onChange={(vibration) => update({ vibration })} />}
           <div className="mt-auto pt-4">
             {confirmReset ? (
               <div className="flex gap-2">

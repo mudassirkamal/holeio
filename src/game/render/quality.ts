@@ -19,11 +19,31 @@ export const QUALITY: Record<QualityLevel, QualitySettings> = {
   ultra: { maxPixelRatio: 2, shadows: true, shadowMapSize: 4096, postprocessing: true, ambientOcclusion: "full", bloom: true, antialias: true, groundTexture: 8192, particles: 3200 },
 };
 
+/** Phones and tablets: touch-first devices with tighter GPU memory and battery budgets. */
+export function isMobileDevice() {
+  if (typeof window === "undefined") return false;
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.matchMedia("(pointer: coarse)").matches;
+}
+
+/**
+ * The preset for `level` on this device. Mobile browsers get a smaller ground texture
+ * and fewer particles: iOS in particular kills tabs that use too much memory.
+ */
+export function qualitySettings(level: QualityLevel): QualitySettings {
+  const q = QUALITY[level];
+  if (!isMobileDevice()) return q;
+  return { ...q, groundTexture: Math.min(q.groundTexture, 3072), shadowMapSize: Math.min(q.shadowMapSize, 2048), particles: Math.min(q.particles, 1600) };
+}
+
 /** A sensible starting quality for the current device. */
 export function detectQuality(): QualityLevel {
   if (typeof window === "undefined") return "high";
-  const mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.matchMedia("(pointer: coarse)").matches;
   const cores = navigator.hardwareConcurrency ?? 4;
-  if (mobile) return cores >= 8 ? "medium" : "low";
+  if (isMobileDevice()) {
+    // Adaptive resolution keeps medium smooth on most phones; only clearly weak
+    // Android devices (deviceMemory is Chrome-only) start on low.
+    const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+    return (memory !== undefined && memory <= 3) || cores <= 2 ? "low" : "medium";
+  }
   return cores >= 8 ? "high" : "medium";
 }

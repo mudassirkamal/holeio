@@ -24,7 +24,7 @@ export function ScreenHeader({ title }: { title: string }) {
         <Button variant="ghost" size="md" onClick={() => go("menu")} aria-label="Back">
           ←
         </Button>
-        <h1 className="font-display text-3xl tracking-wide text-outline sm:text-5xl">{title}</h1>
+        <h1 className="font-display text-3xl tracking-wide text-outline sm:text-5xl short:text-3xl">{title}</h1>
       </div>
       <div className="hidden sm:block">
         <Currency />

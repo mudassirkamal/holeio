@@ -129,7 +129,7 @@ export class SceneView {
     this.renderer.setPixelRatio(pixelRatio);
     this.renderer.setSize(width, height, false);
     this.composer?.setSize(width, height);
-    this.rig.setAspect(width / Math.max(1, height));
+    this.rig.setViewport(width, height);
     this.dust.setPixelRatio(pixelRatio);
     this.sparks.setPixelRatio(pixelRatio);
   }

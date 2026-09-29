@@ -14,11 +14,12 @@ const VARIANTS: Record<Variant, { className: string; shadow: string }> = {
   ghost: { className: "bg-white/10 text-white border border-white/20", shadow: "rgba(0,0,0,0.35)" },
 };
 
+/** Sizes shrink on short screens (phones in landscape) so menus fit without scrolling. */
 const SIZES: Record<Size, string> = {
   sm: "px-3 py-1.5 text-sm rounded-xl",
-  md: "px-5 py-2.5 text-lg rounded-2xl",
-  lg: "px-7 py-3.5 text-2xl rounded-2xl",
-  xl: "px-10 py-4 text-4xl rounded-3xl",
+  md: "px-5 py-2.5 text-lg rounded-2xl short:px-3 short:py-2 short:text-base",
+  lg: "px-7 py-3.5 text-2xl rounded-2xl short:py-2.5 short:text-xl",
+  xl: "px-10 py-4 text-4xl rounded-3xl short:py-2.5 short:text-3xl",
 };
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {

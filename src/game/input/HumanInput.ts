@@ -54,12 +54,18 @@ export class HumanInput {
       const rect = this.element.getBoundingClientRect();
       this.mouse = { x: e.clientX - rect.left, y: e.clientY - rect.top };
     } else if (e.pointerId === this.touchId) {
-      const dx = e.clientX - this.joystick.baseX;
-      const dy = e.clientY - this.joystick.baseY;
+      const joy = this.joystick;
+      const dx = e.clientX - joy.baseX;
+      const dy = e.clientY - joy.baseY;
       const d = Math.hypot(dx, dy);
-      const k = d > JOYSTICK_RADIUS ? JOYSTICK_RADIUS / d : 1;
-      this.joystick.knobX = this.joystick.baseX + dx * k;
-      this.joystick.knobY = this.joystick.baseY + dy * k;
+      // Dragging past the rim pulls the base along behind the thumb, so reversing
+      // direction takes a short flick instead of a long drag back across the stick.
+      if (d > JOYSTICK_RADIUS) {
+        joy.baseX = e.clientX - (dx / d) * JOYSTICK_RADIUS;
+        joy.baseY = e.clientY - (dy / d) * JOYSTICK_RADIUS;
+      }
+      joy.knobX = e.clientX;
+      joy.knobY = e.clientY;
     }
   };
 

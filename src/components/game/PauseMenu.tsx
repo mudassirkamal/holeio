@@ -16,9 +16,9 @@ export default function PauseMenu() {
   const online = Boolean(match?.net);
 
   return (
-    <div className="absolute inset-0 z-30 grid place-items-center bg-black/55 p-4 backdrop-blur-sm">
-      <div className="panel flex w-full max-w-xs flex-col gap-3 rounded-3xl p-6 text-center animate-pop">
-        <h2 className="font-display text-5xl">{online ? "Menu" : "Paused"}</h2>
+    <div className="absolute inset-0 z-30 flex overflow-y-auto bg-black/55 p-4 backdrop-blur-sm short:p-3">
+      <div className="panel m-auto flex w-full max-w-xs flex-col gap-3 rounded-3xl p-6 text-center animate-pop short:gap-2 short:p-4">
+        <h2 className="font-display text-5xl short:text-3xl">{online ? "Menu" : "Paused"}</h2>
         {online && <p className="-mt-2 text-sm font-bold text-white/65">Online matches keep running while this is open.</p>}
         <Button size="lg" onClick={() => setPaused(false)}>
           ▶ Resume

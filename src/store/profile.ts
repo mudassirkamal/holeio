@@ -4,13 +4,14 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { LEVELS } from "@/game/config/levels";
 import { DEFAULT_SKIN, SKIN_BY_ID, type SkinDef, type SkinId } from "@/game/config/skins";
-import { detectQuality, type QualityLevel } from "@/game/render/quality";
+import { detectQuality, isMobileDevice, type QualityLevel } from "@/game/render/quality";
 
 export interface Settings {
   quality: QualityLevel;
   sound: boolean;
   music: boolean;
   minimap: boolean;
+  vibration: boolean;
 }
 
 interface ProfileState {
@@ -41,7 +42,7 @@ const initialProfile = () => ({
   levelStars: {} as Record<number, number>,
   gamesPlayed: 0,
   wins: 0,
-  settings: { quality: detectQuality(), sound: true, music: true, minimap: true } as Settings,
+  settings: { quality: detectQuality(), sound: true, music: true, minimap: true, vibration: true } as Settings,
 });
 
 export const useProfile = create<ProfileState>()(
@@ -68,8 +69,19 @@ export const useProfile = create<ProfileState>()(
     }),
     {
       name: "hole-rush-profile",
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => localStorage),
+      migrate: (persisted, version) => {
+        const state = persisted as ProfileState;
+        // v2: phones got adaptive resolution, so re-pick their starting quality once.
+        if (version < 2 && state?.settings && isMobileDevice()) state.settings.quality = detectQuality();
+        return state;
+      },
+      // Settings added later get their defaults in profiles saved before they existed.
+      merge: (persisted, current) => {
+        const saved = persisted as Partial<ProfileState> | undefined;
+        return { ...current, ...saved, settings: { ...current.settings, ...saved?.settings } };
+      },
     },
   ),
 );

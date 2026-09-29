@@ -55,7 +55,7 @@ export default function Lobby() {
   };
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-y-auto p-4 scrollbar-thin sm:p-8">
+    <div className="flex h-full flex-col gap-4 overflow-y-auto p-4 scrollbar-thin sm:p-8 short:gap-3 short:p-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="text-xs font-black uppercase tracking-[0.3em] text-white/55">{lobby.isPublic ? "Public match" : "Private room"}</div>

@@ -35,7 +35,7 @@ export default function LevelSelect() {
   const levels = LEVELS.slice(world * LEVELS_PER_WORLD, (world + 1) * LEVELS_PER_WORLD);
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-y-auto p-4 scrollbar-thin sm:p-8">
+    <div className="flex h-full flex-col gap-4 overflow-y-auto p-4 scrollbar-thin sm:p-8 short:gap-3 short:p-3">
       <ScreenHeader title="Levels" />
 
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">

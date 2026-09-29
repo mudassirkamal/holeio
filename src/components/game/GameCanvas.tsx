@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { WebGLRenderer } from "three";
 import { audio } from "@/game/audio/AudioEngine";
+import { haptics } from "@/game/input/haptics";
 import { THEME_ORDER } from "@/game/config/themes";
 import type { SkinId } from "@/game/config/skins";
 import { GameSession, createRenderer } from "@/game/engine/GameSession";
@@ -77,10 +78,12 @@ export default function GameCanvas() {
     sessionRef.current = session;
     session.start();
 
-    const onResize = () => session.resize();
-    window.addEventListener("resize", onResize);
+    // Observing the canvas catches phone rotations after layout has settled, which a
+    // window resize event on iOS does not always do.
+    const observer = new ResizeObserver(() => session.resize());
+    observer.observe(canvasRef.current);
     return () => {
-      window.removeEventListener("resize", onResize);
+      observer.disconnect();
       useNet.getState().voice?.setProximity(null);
       session.dispose();
       if (sessionRef.current === session) sessionRef.current = null;
@@ -105,21 +108,51 @@ export default function GameCanvas() {
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [playing]);
 
+  // Keep the phone screen on during a match (it can dim while you watch after being eaten).
+  useEffect(() => {
+    if (!playing || !("wakeLock" in navigator)) return;
+    let lock: WakeLockSentinel | null = null;
+    let active = true;
+    const acquire = () => {
+      // The browser drops the lock whenever the page is hidden; take it again on return.
+      if (document.hidden) return;
+      navigator.wakeLock
+        .request("screen")
+        .then((sentinel) => {
+          if (active) lock = sentinel;
+          else void sentinel.release();
+        })
+        .catch(() => {});
+    };
+    acquire();
+    document.addEventListener("visibilitychange", acquire);
+    return () => {
+      active = false;
+      document.removeEventListener("visibilitychange", acquire);
+      void lock?.release().catch(() => {});
+    };
+  }, [playing]);
+
   // Skin shop: close-up of the featured demo hole wearing the previewed skin.
   useEffect(() => {
     const session = sessionRef.current;
     if (!session || playing) return;
-    session.setCloseUp(screen === "skins");
+    // Phones in landscape show the skin list beside the preview: keep the hole top right,
+    // above the details panel.
+    const sideBySide = window.matchMedia("(max-height: 540px) and (orientation: landscape)").matches;
+    session.setCloseUp(screen === "skins", sideBySide ? 0.24 : 0, sideBySide ? -0.2 : 0);
     session.previewSkin((previewSkin as SkinId | null) ?? selectedSkin);
   }, [screen, previewSkin, selectedSkin, playing, demoIndex, quality]);
 
-  // Audio settings.
+  // Audio and vibration settings.
   const sound = useProfile((s) => s.settings.sound);
   const music = useProfile((s) => s.settings.music);
+  const vibration = useProfile((s) => s.settings.vibration);
   useEffect(() => {
     audio.setSfx(sound);
     audio.setMusic(music);
-  }, [sound, music]);
+    haptics.setEnabled(vibration);
+  }, [sound, music, vibration]);
 
   return (
     <div className="absolute inset-0">

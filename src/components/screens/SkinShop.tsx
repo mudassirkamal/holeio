@@ -45,10 +45,10 @@ export default function SkinShop() {
   const canBuy = skin.unlock.type === "coins" && profile.coins >= skin.unlock.price;
 
   return (
-    <div className="flex h-full flex-col gap-4 p-4 sm:p-8">
+    <div className="flex h-full flex-col gap-4 p-4 sm:p-8 short:gap-3 short:p-3">
       <ScreenHeader title="Skins" />
-      <div className="flex min-h-0 flex-1 flex-col-reverse gap-4 lg:flex-row">
-        <div className="panel min-h-0 flex-1 overflow-y-auto rounded-3xl p-4 scrollbar-thin lg:max-w-xl">
+      <div className="flex min-h-0 flex-1 flex-col-reverse gap-4 lg:flex-row short:flex-row short:gap-3">
+        <div className="panel min-h-0 flex-1 overflow-y-auto rounded-3xl p-4 scrollbar-thin lg:max-w-xl short:max-w-[46%] short:p-3">
           <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
             {SKINS.map((s) => {
               const owned = isSkinUnlocked(s, profile);
@@ -72,16 +72,16 @@ export default function SkinShop() {
           </div>
         </div>
 
-        <div className="flex flex-1 flex-col items-center justify-end gap-3 lg:justify-center">
-          <div className="panel w-full max-w-sm rounded-3xl p-5 text-center animate-rise">
+        <div className="flex flex-1 flex-col items-center justify-end gap-3 lg:justify-center short:items-end short:justify-end">
+          <div className="panel w-full max-w-sm rounded-3xl p-5 text-center animate-rise short:max-w-72 short:p-3">
             <div className="text-xs font-black uppercase tracking-[0.3em]" style={{ color: RARITY_COLORS[skin.rarity] }}>
               {skin.rarity}
             </div>
-            <h2 className="font-display text-4xl">{skin.name}</h2>
+            <h2 className="font-display text-4xl short:text-2xl">{skin.name}</h2>
             <p className="mt-1 text-sm font-bold text-white/65">
               {skin.particles !== "none" ? `Animated · ${skin.particles} trail` : skin.pattern === "solid" ? "Classic glow" : "Animated pattern"}
             </p>
-            <div className="mt-4">
+            <div className="mt-4 short:mt-2">
               {profile.selectedSkin === focused ? (
                 <Button variant="green" size="lg" className="w-full" disabled>
                   Equipped

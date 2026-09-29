@@ -32,8 +32,12 @@ Built with **Next.js 16**, **React 19**, **Three.js** and **TypeScript**.
   when they block your hole. Four quality presets (auto-detected).
 - **Audio** synthesized at runtime with WebAudio (no audio files): swallow pops pitched
   by object size, size-ups, combos, hole kills and an adaptive music loop.
-- Mouse, keyboard (WASD / arrows) and touch (floating joystick) controls; responsive
-  layout for phones and desktops; progress saved in `localStorage`.
+- Mouse, keyboard (WASD / arrows) and touch controls; progress saved in `localStorage`.
+- **Built for phones**: a floating joystick that follows your thumb, vibration on big
+  swallows and kills (Android), layouts for portrait and landscape that stay clear of
+  notches, a wider portrait camera, adaptive resolution that keeps the frame rate up,
+  rendering capped for 120 Hz screens to save battery, and an installable app
+  (Add to Home Screen) that launches full screen.
 
 ## Getting started
 
@@ -113,7 +117,8 @@ one, the game still works for everyone who can connect directly.
 
 ## How to play
 
-- Move the mouse — your hole follows the cursor (or use WASD / arrows, or drag on touch).
+- Move the mouse — your hole follows the cursor (or use WASD / arrows, or drag anywhere
+  on a touch screen).
 - Anything smaller than your hole falls in; bigger objects wobble at the edge.
 - Every swallow grows your hole. Fast chains of bites build combos.
 - A hole at least 14% wider can swallow a smaller hole whose center it covers.

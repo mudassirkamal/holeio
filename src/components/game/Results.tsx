@@ -71,76 +71,82 @@ export default function Results() {
   ];
 
   return (
-    <div className="absolute inset-0 z-30 grid place-items-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm">
-      <div className="panel w-full max-w-lg rounded-3xl p-6 text-center animate-pop">
-        {level && <div className="text-sm font-black uppercase tracking-widest text-white/55">Level {level.id} · {level.name}</div>}
-        <h2 className={`font-display text-5xl text-outline sm:text-6xl ${won ? "text-[#ffe066]" : "text-white"}`}>
-          {headline(result.mode, result.rank, result.percent, won, result.eliminated)}
-        </h2>
-        {level && (
-          <div className="mt-2 flex justify-center">
-            <Stars count={reward.stars} size="text-5xl" animate />
-          </div>
-        )}
-        {level && !won && <p className="mt-1 font-bold text-white/70">{level.mode === "solo" ? `Swallow ${level.stars[0]}% to pass` : "Finish in the top 3 to pass"}</p>}
-
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {stats.map(([label, value]) => (
-            <div key={label} className="rounded-2xl bg-black/30 px-3 py-2">
-              <div className="text-[10px] font-black uppercase tracking-widest text-white/50">{label}</div>
-              <div className="truncate font-display text-xl">{value}</div>
+    // `m-auto` centres the panel but, unlike grid centring, still scrolls fully when it
+    // is taller than the screen. Short screens split it into two columns.
+    <div className="absolute inset-0 z-30 flex overflow-y-auto bg-black/60 p-4 backdrop-blur-sm short:p-3">
+      <div className="panel m-auto w-full max-w-lg rounded-3xl p-6 text-center animate-pop short:grid short:max-w-3xl short:grid-cols-2 short:items-center short:gap-4 short:p-4">
+        <div>
+          {level && <div className="text-sm font-black uppercase tracking-widest text-white/55">Level {level.id} · {level.name}</div>}
+          <h2 className={`font-display text-5xl text-outline sm:text-6xl short:text-4xl ${won ? "text-[#ffe066]" : "text-white"}`}>
+            {headline(result.mode, result.rank, result.percent, won, result.eliminated)}
+          </h2>
+          {level && (
+            <div className="mt-2 flex justify-center short:mt-1">
+              <Stars count={reward.stars} size="text-5xl short:text-4xl" animate />
             </div>
-          ))}
-        </div>
+          )}
+          {level && !won && <p className="mt-1 font-bold text-white/70">{level.mode === "solo" ? `Swallow ${level.stars[0]}% to pass` : "Finish in the top 3 to pass"}</p>}
 
-        {result.mode !== "solo" && (
-          <div className="mt-4 max-h-40 overflow-y-auto rounded-2xl bg-black/25 p-2 scrollbar-thin">
-            {result.leaderboard.map((row) => (
-              <div key={row.id} className={`flex items-center gap-2 rounded-xl px-2 py-1 text-sm font-extrabold ${row.isPlayer ? "bg-white/20" : ""}`}>
-                <span className="w-6 text-right text-white/60">{row.rank}</span>
-                <span className="h-3 w-3 rounded-full" style={{ background: SKIN_BY_ID[row.skinId].colors[0] }} />
-                <span className="flex-1 truncate text-left">{row.name}</span>
-                <span className="tabular-nums">{row.score.toLocaleString()}</span>
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 short:mt-2">
+            {stats.map(([label, value]) => (
+              <div key={label} className="rounded-2xl bg-black/30 px-3 py-2 short:py-1.5">
+                <div className="text-[10px] font-black uppercase tracking-widest text-white/50">{label}</div>
+                <div className="truncate font-display text-xl short:text-lg">{value}</div>
               </div>
             ))}
           </div>
-        )}
-
-        <div className="mt-4 flex items-center justify-center gap-2 font-display text-3xl text-[#ffd65c] animate-pop" style={{ animationDelay: "0.9s" }}>
-          +¢{reward.coins}
-          {reward.newBest && <span className="rounded-full bg-lime px-2 py-0.5 text-sm text-ink">NEW BEST</span>}
         </div>
 
-        {online ? (
-          <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-            <Button variant="ghost" className="flex-1" onClick={leaveRoom}>
-              Leave room
-            </Button>
-            {room?.isHost ? (
-              <Button className="flex-[1.4]" onClick={() => room.returnToLobby()}>
-                Back to lobby
-              </Button>
-            ) : (
-              <div className="flex flex-[1.4] items-center justify-center rounded-2xl bg-black/30 px-4 py-2 font-bold text-white/70">
-                Waiting for the host…
-              </div>
-            )}
+        <div>
+          {result.mode !== "solo" && (
+            <div className="mt-4 max-h-40 overflow-y-auto rounded-2xl bg-black/25 p-2 scrollbar-thin short:mt-0 short:max-h-36">
+              {result.leaderboard.map((row) => (
+                <div key={row.id} className={`flex items-center gap-2 rounded-xl px-2 py-1 text-sm font-extrabold ${row.isPlayer ? "bg-white/20" : ""}`}>
+                  <span className="w-6 text-right text-white/60">{row.rank}</span>
+                  <span className="h-3 w-3 rounded-full" style={{ background: SKIN_BY_ID[row.skinId].colors[0] }} />
+                  <span className="flex-1 truncate text-left">{row.name}</span>
+                  <span className="tabular-nums">{row.score.toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-4 flex items-center justify-center gap-2 font-display text-3xl text-[#ffd65c] animate-pop short:mt-2 short:text-2xl" style={{ animationDelay: "0.9s" }}>
+            +¢{reward.coins}
+            {reward.newBest && <span className="rounded-full bg-lime px-2 py-0.5 text-sm text-ink">NEW BEST</span>}
           </div>
-        ) : (
-          <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-            <Button variant="ghost" className="flex-1" onClick={quit}>
-              Menu
-            </Button>
-            <Button variant="secondary" className="flex-1" onClick={() => startMatch({ ...match, seed: level ? match.seed : Math.floor(Math.random() * 1e9) })}>
-              ↻ Retry
-            </Button>
-            {won && nextLevel && (
-              <Button className="flex-[1.4]" onClick={() => startMatch(levelMatch(nextLevel))}>
-                Next ▶
+
+          {online ? (
+            <div className="mt-5 flex flex-col gap-2 sm:flex-row short:mt-3">
+              <Button variant="ghost" className="flex-1" onClick={leaveRoom}>
+                Leave room
               </Button>
-            )}
-          </div>
-        )}
+              {room?.isHost ? (
+                <Button className="flex-[1.4]" onClick={() => room.returnToLobby()}>
+                  Back to lobby
+                </Button>
+              ) : (
+                <div className="flex flex-[1.4] items-center justify-center rounded-2xl bg-black/30 px-4 py-2 font-bold text-white/70">
+                  Waiting for the host…
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="mt-5 flex flex-col gap-2 sm:flex-row short:mt-3">
+              <Button variant="ghost" className="flex-1" onClick={quit}>
+                Menu
+              </Button>
+              <Button variant="secondary" className="flex-1" onClick={() => startMatch({ ...match, seed: level ? match.seed : Math.floor(Math.random() * 1e9) })}>
+                ↻ Retry
+              </Button>
+              {won && nextLevel && (
+                <Button className="flex-[1.4]" onClick={() => startMatch(levelMatch(nextLevel))}>
+                  Next ▶
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

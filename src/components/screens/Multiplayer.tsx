@@ -38,7 +38,7 @@ export default function Multiplayer() {
   const canJoin = code.length === 5 && !busy;
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-y-auto p-4 scrollbar-thin sm:p-8">
+    <div className="flex h-full flex-col gap-4 overflow-y-auto p-4 scrollbar-thin sm:p-8 short:gap-3 short:p-3">
       <ScreenHeader title="Multiplayer" />
 
       {(status || error) && (

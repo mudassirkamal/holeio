@@ -42,7 +42,12 @@ class AudioEngine {
       const data = this.noise.getChannelData(0);
       for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
     }
-    if (this.ctx.state === "suspended") void this.ctx.resume();
+    this.resume();
+  }
+
+  /** Restarts an existing context; iOS parks it as "interrupted" after a call or app switch. */
+  resume() {
+    if (this.ctx && this.ctx.state !== "running") void this.ctx.resume().catch(() => {});
   }
 
   setSfx(enabled: boolean) {

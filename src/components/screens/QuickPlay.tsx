@@ -45,7 +45,7 @@ export default function QuickPlay() {
   const [blocks, setBlocks] = useState(5);
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-y-auto p-4 scrollbar-thin sm:p-8">
+    <div className="flex h-full flex-col gap-4 overflow-y-auto p-4 scrollbar-thin sm:p-8 short:gap-3 short:p-3">
       <ScreenHeader title="Quick Play" />
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="panel rounded-3xl p-5">

@@ -3,6 +3,8 @@
 import { create } from "zustand";
 import type { MatchConfig } from "@/game/engine/GameSession";
 import type { FeedItem, HudSnapshot, MatchResult } from "@/game/engine/types";
+import { isMobileDevice } from "@/game/render/quality";
+import { enterFullscreen } from "@/components/ui/fullscreen";
 
 export type Screen = "menu" | "levels" | "quickplay" | "skins" | "settings" | "multiplayer" | "lobby" | "playing";
 
@@ -55,8 +57,11 @@ export const useApp = create<AppState>()((set) => ({
   reward: null,
   previewSkin: null,
   go: (screen) => set({ screen, previewSkin: null }),
-  startMatch: (match) =>
-    set((s) => ({ screen: "playing", match, matchKey: s.matchKey + 1, hud: null, feed: [], result: null, reward: null, paused: false })),
+  startMatch: (match) => {
+    // Phones play full screen where the browser allows it (called from the Play tap).
+    if (isMobileDevice()) enterFullscreen();
+    set((s) => ({ screen: "playing", match, matchKey: s.matchKey + 1, hud: null, feed: [], result: null, reward: null, paused: false }));
+  },
   setPaused: (paused) => set({ paused }),
   setHud: (hud) => set({ hud }),
   pushFeed: (item) =>

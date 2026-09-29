@@ -7,12 +7,13 @@ import type { SkinId } from "../config/skins";
 import type { ThemeId } from "../config/themes";
 import { Rng } from "../core/rng";
 import { World, type HoleSetup } from "../core/World";
+import { haptics } from "../input/haptics";
 import { HumanInput, type JoystickState } from "../input/HumanInput";
 import { ClientSync } from "../net/ClientSync";
 import { HostSync, RemoteController } from "../net/HostSync";
 import type { HoleStats, MatchStart } from "../net/protocol";
 import type { Room } from "../net/Room";
-import { QUALITY, type QualityLevel } from "../render/quality";
+import { isMobileDevice, qualitySettings, type QualityLevel, type QualitySettings } from "../render/quality";
 import { SceneView } from "../render/SceneView";
 import type { FeedItem, HudSnapshot, LeaderboardRow, MatchResult } from "./types";
 
@@ -54,10 +55,14 @@ export interface SessionOptions {
 const FIXED_DT = 1 / 60;
 const COUNTDOWN = 3;
 const DEMO_DURATION = 150;
+/** Phones render at most ~90 fps: 120 Hz screens drop to 60, which saves a lot of battery. */
+const MOBILE_MIN_FRAME_MS = 1000 / 90 - 1.5;
+/** Adaptive resolution never renders blurrier than this many pixels per CSS pixel. */
+const MIN_PIXEL_RATIO = 0.7;
 
 /** Creates the WebGL renderer once per canvas (reused across sessions). */
 export function createRenderer(canvas: HTMLCanvasElement, quality: QualityLevel) {
-  const q = QUALITY[quality];
+  const q = qualitySettings(quality);
   const renderer = new WebGLRenderer({
     canvas,
     antialias: !q.postprocessing,
@@ -119,6 +124,15 @@ export class GameSession {
   private popupPoints = 0;
   private popupTimer = 0;
   private readonly screenPos = new Vector3();
+  private readonly quality: QualitySettings;
+  private resolutionScale = 1;
+  private resolutionCeiling = 1;
+  private perfWarmup = 2;
+  private perfTime = 0;
+  private perfFrames = 0;
+  private perfMin = Infinity;
+  private perfMax = 0;
+  private perfSmoothFor = 0;
 
   constructor(
     renderer: WebGLRenderer,
@@ -163,8 +177,9 @@ export class GameSession {
     }
 
     this.featuredId = this.isDemo ? 0 : null;
+    this.quality = qualitySettings(options.quality);
     this.view = new SceneView(renderer, this.world, {
-      quality: QUALITY[options.quality],
+      quality: this.quality,
       overlay: options.overlay,
       focusId: this.playerId,
     });
@@ -186,13 +201,16 @@ export class GameSession {
   }
 
   start() {
+    const minFrameMs = isMobileDevice() ? MOBILE_MIN_FRAME_MS : 0;
     this.lastTime = performance.now();
     const loop = (now: number) => {
       this.frame = requestAnimationFrame(loop);
+      if (now - this.lastTime < minFrameMs) return;
       // rAF timestamps can predate performance.now() after heavy setup work: never go backwards.
-      const dt = Math.max(0, Math.min(0.1, (now - this.lastTime) / 1000));
+      const frameTime = (now - this.lastTime) / 1000;
       this.lastTime = now;
-      this.tick(dt);
+      this.adaptResolution(frameTime);
+      this.tick(Math.max(0, Math.min(0.1, frameTime)));
     };
     this.frame = requestAnimationFrame(loop);
 
@@ -227,8 +245,58 @@ export class GameSession {
     const { canvas } = this.options;
     const width = canvas.clientWidth || window.innerWidth;
     const height = canvas.clientHeight || window.innerHeight;
-    const ratio = Math.min(window.devicePixelRatio || 1, QUALITY[this.options.quality].maxPixelRatio);
+    const base = Math.min(window.devicePixelRatio || 1, this.quality.maxPixelRatio);
+    const ratio = Math.max(Math.min(base, MIN_PIXEL_RATIO), base * this.resolutionScale);
     this.view.resize(width, height, ratio);
+  }
+
+  /** Fraction of the full resolution currently rendered (adaptive resolution). */
+  get renderScale() {
+    return this.resolutionScale;
+  }
+
+  /**
+   * Adaptive resolution: renders fewer pixels while frames run slow (phones, weak
+   * laptops) and gives them back once there is headroom. A scale that proved too slow
+   * is never retried, so it settles instead of oscillating.
+   */
+  private adaptResolution(frameTime: number) {
+    if (frameTime <= 0 || frameTime > 1) return; // back from a hidden tab or a long stall
+    if (this.perfWarmup > 0) {
+      this.perfWarmup -= frameTime; // shader compilation right after setup
+      return;
+    }
+    this.perfTime += frameTime;
+    this.perfFrames++;
+    this.perfMin = Math.min(this.perfMin, frameTime);
+    this.perfMax = Math.max(this.perfMax, frameTime);
+    if (this.perfTime < 1) return;
+    const fps = this.perfFrames / this.perfTime;
+    // An evenly paced ~30 fps is the OS frame cap (e.g. iPhone Low Power Mode), not a
+    // struggling GPU: fewer pixels wouldn't make it any faster.
+    const osCapped = fps > 27 && fps < 33 && this.perfMax - this.perfMin < 0.004;
+    this.perfTime = 0;
+    this.perfFrames = 0;
+    this.perfMin = Infinity;
+    this.perfMax = 0;
+    if (osCapped) return;
+
+    const base = Math.min(window.devicePixelRatio || 1, this.quality.maxPixelRatio);
+    const minScale = Math.min(1, Math.max(0.45, MIN_PIXEL_RATIO / base));
+    if (fps < 45 && this.resolutionScale > minScale) {
+      this.resolutionCeiling = Math.max(minScale, this.resolutionScale - 0.05);
+      this.setResolutionScale(Math.max(minScale, this.resolutionScale - 0.15));
+    } else if (fps > 56 && this.resolutionScale < this.resolutionCeiling) {
+      if (++this.perfSmoothFor >= 5) this.setResolutionScale(Math.min(this.resolutionCeiling, this.resolutionScale + 0.1));
+    } else {
+      this.perfSmoothFor = 0;
+    }
+  }
+
+  private setResolutionScale(scale: number) {
+    this.resolutionScale = scale;
+    this.perfSmoothFor = 0;
+    this.resize();
   }
 
   /** Menu helpers: preview a skin on the featured demo hole. */
@@ -236,8 +304,10 @@ export class GameSession {
     if (this.featuredId !== null) this.view.setHoleSkin(this.featuredId, skinId);
   }
 
-  setCloseUp(enabled: boolean) {
+  /** `shiftX`/`shiftY` move the featured hole on screen (see CameraRig.setScreenShift). */
+  setCloseUp(enabled: boolean, shiftX = 0, shiftY = 0) {
     this.view.closeUp = enabled;
+    this.view.rig.setScreenShift(enabled ? shiftX : 0, enabled ? shiftY : 0);
     if (enabled && this.featuredId !== null) this.view.setFocus(this.featuredId);
   }
 
@@ -319,6 +389,7 @@ export class GameSession {
         case "objectEaten":
           if (e.holeId === this.playerId) {
             audio.swallow(e.value);
+            if (e.value >= 40) haptics.pulse(e.value >= 400 ? [35, 30, 35] : e.value >= 110 ? 24 : 12);
             this.popupPoints += e.value;
             if (e.combo > 0 && e.combo % 10 === 0) {
               this.view.popup(`COMBO ×${e.combo}`, "is-combo");
@@ -329,6 +400,7 @@ export class GameSession {
         case "levelUp":
           if (e.holeId === this.playerId) {
             audio.levelUp();
+            haptics.pulse([18, 40, 18]);
             this.options.onFeed?.({ kind: "levelUp", level: e.level });
           }
           break;
@@ -337,6 +409,8 @@ export class GameSession {
           const victim = holes[e.victimId];
           const involvesPlayer = eater.id === this.playerId || victim.id === this.playerId;
           if (!this.isDemo) audio.holeEaten(involvesPlayer);
+          if (eater.id === this.playerId) haptics.pulse([30, 40, 60], 0);
+          else if (victim.id === this.playerId) haptics.pulse(220, 0);
           if (eater.id === this.playerId) this.view.popup(`+${Math.round(e.gain)} ATE ${victim.name.toUpperCase()}!`, "is-kill");
           this.options.onFeed?.({
             kind: "kill",
@@ -472,8 +546,12 @@ export class GameSession {
       leaderboard: this.leaderboard(),
       biggestBite: player.biggestBite,
     };
-    if (rank === 1 || (this.world.mode === "solo" && result.percent >= DEFAULT_SOLO_STARS[0])) audio.win();
-    else audio.lose();
+    if (rank === 1 || (this.world.mode === "solo" && result.percent >= DEFAULT_SOLO_STARS[0])) {
+      audio.win();
+      haptics.pulse([40, 60, 40, 60, 90], 0);
+    } else {
+      audio.lose();
+    }
     this.options.onHud?.(this.snapshot());
     this.options.onEnd?.(result);
   }

@@ -44,12 +44,17 @@ export default function GameApp() {
       const brain = () => createBots(1, "hard", new Rng(Date.now()))[0].controller;
       (window as unknown as { __debug: unknown }).__debug = { useApp, useProfile, useNet, sessionRef, levels: LEVELS, levelMatch, brain };
     }
+    // Not `once`: phones suspend audio when the app goes to the background, and it can
+    // only be resumed from the next touch.
     const unlock = () => audio.unlock();
-    window.addEventListener("pointerdown", unlock, { once: true });
-    window.addEventListener("keydown", unlock, { once: true });
+    const onVisible = () => !document.hidden && audio.resume();
+    window.addEventListener("pointerdown", unlock);
+    window.addEventListener("keydown", unlock);
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       window.removeEventListener("pointerdown", unlock);
       window.removeEventListener("keydown", unlock);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
 
@@ -58,7 +63,7 @@ export default function GameApp() {
       {/* Remount on quality change so the WebGL context is created with matching options. */}
       <GameCanvas key={quality} />
       {hydrated && (
-        <div className={`absolute inset-0 ${screen === "playing" ? "pointer-events-none" : ""}`}>
+        <div className={`safe-inset absolute ${screen === "playing" ? "pointer-events-none" : ""}`}>
           {screen === "menu" && <MainMenu />}
           {screen === "levels" && <LevelSelect />}
           {screen === "quickplay" && <QuickPlay />}

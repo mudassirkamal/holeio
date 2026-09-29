@@ -12,14 +12,37 @@ export class CameraRig {
   private shake = 0;
   private readonly pitch = MathUtils.degToRad(56);
   private orbit = 0;
+  private viewWidth = 1;
+  private viewHeight = 1;
+  private shiftX = 0;
+  private shiftY = 0;
+  private shiftTargetX = 0;
+  private shiftTargetY = 0;
 
   constructor(aspect: number) {
     // A narrow field of view keeps the near-isometric look with little edge distortion.
     this.camera = new PerspectiveCamera(32, aspect, 1, 5000);
   }
 
-  setAspect(aspect: number) {
-    this.camera.aspect = aspect;
+  setViewport(width: number, height: number) {
+    this.viewWidth = Math.max(1, width);
+    this.viewHeight = Math.max(1, height);
+    this.camera.aspect = this.viewWidth / this.viewHeight;
+    this.applyShift();
+  }
+
+  /**
+   * Moves the followed point on screen, as fractions of the width and height
+   * (x 0.25 puts it at 75% across, y -0.2 at 30% down) — keeps it clear of menus.
+   */
+  setScreenShift(x: number, y = 0) {
+    this.shiftTargetX = x;
+    this.shiftTargetY = y;
+  }
+
+  private applyShift() {
+    if (Math.abs(this.shiftX) < 1e-3 && Math.abs(this.shiftY) < 1e-3) this.camera.clearViewOffset();
+    else this.camera.setViewOffset(this.viewWidth, this.viewHeight, -this.shiftX * this.viewWidth, -this.shiftY * this.viewHeight, this.viewWidth, this.viewHeight);
     this.camera.updateProjectionMatrix();
   }
 
@@ -27,10 +50,13 @@ export class CameraRig {
     this.shake = Math.min(1.5, this.shake + amount);
   }
 
-  /** Desired camera distance for a hole of `radius`. */
+  /**
+   * Desired camera distance for a hole of `radius`. Portrait screens pull back further
+   * so phones still see threats coming from the sides.
+   */
   static distanceFor(radius: number, aspect: number) {
     const portrait = aspect < 1 ? 1 / aspect : 1;
-    return (36 + radius * 7.6) * Math.min(1.9, 0.75 + portrait * 0.35);
+    return (36 + radius * 7.6) * Math.min(2.1, 1.1 + (portrait - 1) * 0.72);
   }
 
   snap(x: number, z: number, radius: number) {
@@ -46,6 +72,12 @@ export class CameraRig {
     this.distance = damp(this.distance, CameraRig.distanceFor(radius, this.camera.aspect) * zoom, 2.2, dt);
     this.orbit += orbitSpeed * dt;
     this.shake = Math.max(0, this.shake - dt * 2.5);
+    if (this.shiftX !== this.shiftTargetX || this.shiftY !== this.shiftTargetY) {
+      const ease = (value: number, target: number) => (Math.abs(target - value) < 1e-3 ? target : damp(value, target, 6, dt));
+      this.shiftX = ease(this.shiftX, this.shiftTargetX);
+      this.shiftY = ease(this.shiftY, this.shiftTargetY);
+      this.applyShift();
+    }
     this.apply();
   }
 

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { DEFAULT_SOLO_STARS, LEVELS, MODE_INFO } from "@/game/config/levels";
 import { SKIN_BY_ID } from "@/game/config/skins";
 import type { HudSnapshot } from "@/game/engine/types";
+import { isMobileDevice } from "@/game/render/quality";
 import { useApp } from "@/store/app";
 import { useNet } from "@/store/net";
 import { useProfile } from "@/store/profile";
@@ -22,7 +23,7 @@ function Timer({ hud }: { hud: HudSnapshot }) {
   return (
     <div className="flex flex-col items-end gap-1 sm:items-center">
       <div
-        className={`rounded-2xl px-4 py-0.5 font-display text-3xl tabular-nums text-outline ring-1 ring-white/20 sm:px-5 sm:py-1 sm:text-4xl ${urgent ? "animate-pulse bg-[#e8175d]/85" : "bg-black/45"}`}
+        className={`rounded-2xl px-4 py-0.5 font-display text-3xl tabular-nums text-outline ring-1 ring-white/20 sm:px-5 sm:py-1 sm:text-4xl short:py-0 short:text-2xl ${urgent ? "animate-pulse bg-[#e8175d]/85" : "bg-black/45"}`}
       >
         {formatTime(hud.timeLeft)}
       </div>
@@ -59,14 +60,14 @@ function SizeMeter({ hud }: { hud: HudSnapshot }) {
   return (
     <div className="flex items-center gap-2 rounded-2xl bg-black/40 p-1.5 pr-3 ring-1 ring-white/15 sm:gap-3 sm:p-2 sm:pr-4">
       <div
-        className="grid h-11 w-11 place-items-center rounded-full font-display text-xl text-outline sm:h-14 sm:w-14 sm:text-2xl"
+        className="grid h-11 w-11 place-items-center rounded-full font-display text-xl text-outline sm:h-14 sm:w-14 sm:text-2xl short:h-11 short:w-11 short:text-xl"
         style={{ background: `conic-gradient(${skin.colors[0]} ${hud.sizeProgress * 360}deg, rgb(255 255 255 / 0.15) 0)` }}
       >
-        <div className="grid h-8 w-8 place-items-center rounded-full bg-[#120f2e] sm:h-11 sm:w-11">{hud.sizeLevel}</div>
+        <div className="grid h-8 w-8 place-items-center rounded-full bg-[#120f2e] sm:h-11 sm:w-11 short:h-8 short:w-8">{hud.sizeLevel}</div>
       </div>
       <div>
-        <div className="hidden text-[10px] font-black uppercase tracking-[0.2em] text-white/60 sm:block">Size</div>
-        <div className="font-display text-xl leading-none tabular-nums sm:text-2xl">{hud.score.toLocaleString()}</div>
+        <div className="hidden text-[10px] font-black uppercase tracking-[0.2em] text-white/60 sm:block short:hidden">Size</div>
+        <div className="font-display text-xl leading-none tabular-nums sm:text-2xl short:text-xl">{hud.score.toLocaleString()}</div>
         {hud.mode !== "solo" && <div className="text-xs font-extrabold text-white/70">{ordinal(hud.rank)} of {hud.holes}</div>}
       </div>
     </div>
@@ -79,7 +80,7 @@ function SoloProgress({ hud }: { hud: HudSnapshot }) {
   const marks = level?.stars ?? DEFAULT_SOLO_STARS;
   const max = Math.max(100, marks[2] * 1.25);
   return (
-    <div className="w-64 rounded-2xl bg-black/40 p-3 ring-1 ring-white/15">
+    <div className="w-64 rounded-2xl bg-black/40 p-3 ring-1 ring-white/15 short:w-56 short:p-2">
       <div className="flex justify-between text-xs font-black uppercase tracking-widest text-white/70">
         <span>City swallowed</span>
         <span className="font-display text-base text-white">{hud.percent.toFixed(1)}%</span>
@@ -101,11 +102,11 @@ function Leaderboard({ hud }: { hud: HudSnapshot }) {
   const player = hud.leaderboard.find((r) => r.isPlayer);
   const rows = player && !top.includes(player) ? [...top, player] : top;
   return (
-    <div className="w-40 rounded-2xl bg-black/40 p-1.5 ring-1 ring-white/15 sm:w-56 sm:p-2">
+    <div className="w-40 rounded-2xl bg-black/40 p-1.5 ring-1 ring-white/15 sm:w-56 sm:p-2 short:w-44 short:p-1.5">
       {rows.map((row, i) => (
         <div
           key={row.id}
-          className={`items-center gap-2 rounded-xl px-2 py-0.5 text-xs font-extrabold sm:py-1 sm:text-sm ${i >= 3 && !row.isPlayer ? "hidden sm:flex" : "flex"} ${row.isPlayer ? "bg-white/20" : ""} ${row.alive ? "" : "opacity-40 line-through"}`}
+          className={`items-center gap-2 rounded-xl px-2 py-0.5 text-xs font-extrabold sm:py-1 sm:text-sm short:py-0.5 short:text-xs ${i >= 3 && !row.isPlayer ? "hidden sm:flex short:hidden" : "flex"} ${row.isPlayer ? "bg-white/20" : ""} ${row.alive ? "" : "opacity-40 line-through"}`}
         >
           <span className="w-5 text-right text-white/60">{row.rank}</span>
           <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: SKIN_BY_ID[row.skinId].colors[0] }} />
@@ -154,7 +155,7 @@ function Minimap({ hud }: { hud: HudSnapshot }) {
       }
     }
   }, [hud]);
-  return <canvas ref={ref} width={140} height={140} className="h-28 w-28 sm:h-36 sm:w-36" />;
+  return <canvas ref={ref} width={140} height={140} className="h-28 w-28 sm:h-36 sm:w-36 short:h-24 short:w-24" />;
 }
 
 /** Current time, refreshed on an interval so time-based UI can expire. */
@@ -177,7 +178,7 @@ function KillFeed() {
         item.kind === "kill" ? (
           <div
             key={id}
-            className={`flex items-center gap-2 rounded-full px-3 py-1 text-sm font-extrabold animate-rise ${item.byPlayer ? "bg-[#2fbf4a]/80" : item.ofPlayer ? "bg-[#e8175d]/80" : "bg-black/45"}`}
+            className={`flex items-center gap-2 rounded-full px-3 py-1 text-sm font-extrabold animate-rise short:py-0.5 short:text-xs ${item.byPlayer ? "bg-[#2fbf4a]/80" : item.ofPlayer ? "bg-[#e8175d]/80" : "bg-black/45"}`}
           >
             <span style={{ color: item.byPlayer ? "#fff" : SKIN_BY_ID[item.eaterSkin].colors[0] }}>{item.eater}</span>
             <span>🕳️</span>
@@ -195,7 +196,7 @@ function LevelUpToast() {
   const last = [...feed].reverse().find((f) => f.item.kind === "levelUp");
   if (!last || last.item.kind !== "levelUp" || now - last.at > 1400) return null;
   return (
-    <div key={last.id} className="font-display text-5xl text-[#ffe066] text-outline animate-pop sm:text-6xl">
+    <div key={last.id} className="font-display text-5xl text-[#ffe066] text-outline animate-pop sm:text-6xl short:text-4xl">
       SIZE UP! <span className="text-white">Lv {last.item.level}</span>
     </div>
   );
@@ -234,18 +235,23 @@ function CenterMessages({ hud }: { hud: HudSnapshot }) {
   if (hud.countdown > 0) {
     const n = Math.ceil(hud.countdown);
     return (
-      <div key={n} className="font-display text-[9rem] leading-none text-white text-outline animate-pop">
-        {n}
+      <div className="flex flex-col items-center gap-3">
+        <div key={n} className="font-display text-[9rem] leading-none text-white text-outline animate-pop short:text-8xl">
+          {n}
+        </div>
+        {isMobileDevice() && (
+          <div className="rounded-full bg-black/50 px-4 py-1.5 font-display text-lg text-white/90 animate-rise">👆 Drag anywhere to move</div>
+        )}
       </div>
     );
   }
   if (hud.countdown <= 0 && hud.duration - hud.timeLeft < 0.8) {
-    return <div className="font-display text-8xl text-[#7cf05a] text-outline animate-pop">GO!</div>;
+    return <div className="font-display text-8xl text-[#7cf05a] text-outline animate-pop short:text-6xl">GO!</div>;
   }
   if (!hud.alive && hud.respawnIn > 0) {
     return (
-      <div className="panel rounded-3xl px-8 py-5 text-center animate-pop">
-        <div className="font-display text-3xl text-[#ff5c8a]">Swallowed{hud.eatenBy ? ` by ${hud.eatenBy}` : ""}!</div>
+      <div className="panel rounded-3xl px-8 py-5 text-center animate-pop short:px-5 short:py-2.5">
+        <div className="font-display text-3xl text-[#ff5c8a] short:text-2xl">Swallowed{hud.eatenBy ? ` by ${hud.eatenBy}` : ""}!</div>
         <div className="font-bold text-white/80">Respawning in {hud.respawnIn.toFixed(1)}s</div>
       </div>
     );
@@ -261,13 +267,13 @@ export default function Hud() {
   if (!hud) return null;
 
   return (
-    <div className="pointer-events-none absolute inset-0 p-3 sm:p-4">
+    <div className="pointer-events-none absolute inset-0 p-3 sm:p-4 short:p-2">
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
             <button
               onClick={() => setPaused(true)}
-              className="pointer-events-auto grid h-12 w-12 cursor-pointer place-items-center rounded-2xl bg-black/45 font-display text-2xl ring-1 ring-white/20 transition hover:bg-black/60"
+              className="pointer-events-auto grid h-12 w-12 cursor-pointer place-items-center rounded-2xl bg-black/45 font-display text-2xl ring-1 ring-white/20 transition hover:bg-black/60 short:h-10 short:w-10 short:text-xl"
               aria-label="Pause"
             >
               ❚❚
@@ -276,7 +282,7 @@ export default function Hud() {
           </div>
           {hud.mode === "solo" && <SoloProgress hud={hud} />}
         </div>
-        <div className="absolute left-1/2 top-4 hidden -translate-x-1/2 sm:block">
+        <div className="absolute left-1/2 top-4 hidden -translate-x-1/2 sm:block short:top-2">
           <Timer hud={hud} />
         </div>
         <div className="flex flex-col items-end gap-2">
