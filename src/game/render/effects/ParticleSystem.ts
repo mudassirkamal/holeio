@@ -1,5 +1,4 @@
 import {
-  AdditiveBlending,
   BufferAttribute,
   BufferGeometry,
   Color,
@@ -174,4 +173,3 @@ export class ParticleSystem {
   }
 }
 
-export const additive = AdditiveBlending;

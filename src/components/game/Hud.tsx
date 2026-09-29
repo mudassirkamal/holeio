@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { LEVELS, MODE_INFO } from "@/game/config/levels";
+import { DEFAULT_SOLO_STARS, LEVELS, MODE_INFO } from "@/game/config/levels";
 import { SKIN_BY_ID } from "@/game/config/skins";
 import type { HudSnapshot } from "@/game/engine/types";
 import { useApp } from "@/store/app";
@@ -54,7 +54,7 @@ function SizeMeter({ hud }: { hud: HudSnapshot }) {
 function SoloProgress({ hud }: { hud: HudSnapshot }) {
   const match = useApp((s) => s.match);
   const level = match?.levelId ? LEVELS.find((l) => l.id === match.levelId) : undefined;
-  const marks = level?.stars ?? [25, 45, 65];
+  const marks = level?.stars ?? DEFAULT_SOLO_STARS;
   const max = Math.max(100, marks[2] * 1.25);
   return (
     <div className="w-64 rounded-2xl bg-black/40 p-3 ring-1 ring-white/15">

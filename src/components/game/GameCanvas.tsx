@@ -67,7 +67,7 @@ export default function GameCanvas() {
         store.addCoins(reward.coins);
         store.recordGame(reward.won);
         window.setTimeout(() => {
-          useApp.getState().finish(result, { stars: reward.stars, coins: reward.coins, newBest: reward.stars > previous });
+          useApp.getState().finish(result, { ...reward, newBest: reward.stars > previous });
         }, 900);
       },
       onDemoEnd: () => setDemoIndex((i) => i + 1),

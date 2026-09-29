@@ -120,7 +120,7 @@ export function createCityMaterial(lighting: ThemeLighting) {
           vec3 ray = toFocus / focusDistance;
           vec3 rel = vCityWorld - cameraPosition;
           float along = dot(rel, ray);
-          if (along > 0.0 && along < focusDistance - uFocusRadius * 0.5) {
+          if (along > 0.0 && along < focusDistance - uFocusRadius - 1.5) {
             float off = length(rel - ray * along);
             float fade = 1.0 - smoothstep(uFocusRadius, uFocusRadius + 3.0, off);
             ivec2 cell = ivec2(mod(gl_FragCoord.xy, 4.0));

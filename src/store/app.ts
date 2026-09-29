@@ -15,6 +15,7 @@ export interface FeedEntry {
 export interface Reward {
   stars: number;
   coins: number;
+  won: boolean;
   newBest: boolean;
 }
 

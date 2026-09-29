@@ -89,7 +89,7 @@ export const THEMES: Record<ThemeId, ThemeDef> = {
     centerZones: [["downtown", 6], ["plaza", 2], ["commercial", 1]],
     streetTree: "tree",
     parkTree: "tree",
-    streetProps: [["lampPost", 0], ["hydrant", 3], ["trashCan", 3], ["bench", 2], ["mailbox", 1.5], ["parkingMeter", 2], ["bicycle", 1.5], ["newsStand", 1], ["phoneBooth", 0.6], ["flowerPot", 1.5], ["cone", 1.2]],
+    streetProps: [["hydrant", 3], ["trashCan", 3], ["bench", 2], ["mailbox", 1.5], ["parkingMeter", 2], ["bicycle", 1.5], ["newsStand", 1], ["phoneBooth", 0.6], ["flowerPot", 1.5], ["cone", 1.2]],
     parkProps: [["bench", 3], ["bush", 4], ["flowerPot", 2], ["trashCan", 1], ["lampPost", 1], ["rock", 1]],
     vehicles: [["car", 6], ["taxi", 3], ["van", 1.5], ["bus", 0.8], ["truck", 0.8]],
     trafficDensity: 0.9,

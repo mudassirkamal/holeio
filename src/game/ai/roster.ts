@@ -29,7 +29,7 @@ export const TRAINED_BRAINS: readonly TrainedBrain[] =
 export const TRAINING_INFO = { generations: trained.generations };
 
 /** Bots at lower difficulties also get slightly "unpolished" genomes. */
-const GENOME_JITTER: Record<Difficulty, number> = { easy: 0.14, normal: 0.08, hard: 0.04, insane: 0 };
+const GENOME_JITTER: Record<Difficulty, number> = { easy: 0.16, normal: 0.1, hard: 0.06, insane: 0.03 };
 
 export function createBots(count: number, difficulty: Difficulty, rng: Rng, avoidSkin?: SkinId): HoleSetup[] {
   const names = rng.shuffle([...BOT_NAMES]);

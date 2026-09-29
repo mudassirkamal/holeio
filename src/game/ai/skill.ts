@@ -19,8 +19,8 @@ export interface SkillProfile {
 }
 
 export const SKILLS: Record<Difficulty, SkillProfile> = {
-  easy: { thinkInterval: 0.5, aimNoise: 0.35, turnRate: 3.2, awareness: 45, mistakeChance: 0.07, threatReaction: 0.55, speedFactor: 0.86 },
-  normal: { thinkInterval: 0.3, aimNoise: 0.17, turnRate: 5, awareness: 70, mistakeChance: 0.03, threatReaction: 0.82, speedFactor: 0.94 },
-  hard: { thinkInterval: 0.18, aimNoise: 0.08, turnRate: 8, awareness: 100, mistakeChance: 0.01, threatReaction: 0.96, speedFactor: 1 },
-  insane: { thinkInterval: 0.1, aimNoise: 0.025, turnRate: 12, awareness: 140, mistakeChance: 0, threatReaction: 1, speedFactor: 1 },
+  easy: { thinkInterval: 0.5, aimNoise: 0.35, turnRate: 3.2, awareness: 45, mistakeChance: 0.08, threatReaction: 0.55, speedFactor: 0.82 },
+  normal: { thinkInterval: 0.32, aimNoise: 0.2, turnRate: 4.8, awareness: 65, mistakeChance: 0.04, threatReaction: 0.78, speedFactor: 0.88 },
+  hard: { thinkInterval: 0.26, aimNoise: 0.14, turnRate: 6, awareness: 78, mistakeChance: 0.025, threatReaction: 0.85, speedFactor: 0.9 },
+  insane: { thinkInterval: 0.18, aimNoise: 0.08, turnRate: 7.5, awareness: 100, mistakeChance: 0.012, threatReaction: 0.92, speedFactor: 0.94 },
 };

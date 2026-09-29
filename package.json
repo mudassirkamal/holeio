@@ -2,7 +2,7 @@
   "name": "hole-rush",
   "version": "1.0.0",
   "private": true,
-  "description": "A hole.io-style 3D arena game built with Next.js and Three.js — levels, skins and strategic AI bots.",
+  "description": "A hole.io-style 3D arena game built with Next.js and Three.js \u2014 levels, skins and strategic AI bots.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "train": "tsx scripts/train-bots.ts",
-    "simulate": "tsx scripts/simulate.ts"
+    "simulate": "tsx scripts/simulate.ts",
+    "balance": "tsx scripts/balance.ts"
   },
   "dependencies": {
     "n8ao": "^2.0.1",

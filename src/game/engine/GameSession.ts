@@ -2,7 +2,7 @@ import { Vector3, WebGLRenderer } from "three";
 import { audio } from "../audio/AudioEngine";
 import { createBots } from "../ai/roster";
 import { sizeLevelForScore } from "../config/constants";
-import type { Difficulty, GameMode } from "../config/levels";
+import { DEFAULT_SOLO_STARS, type Difficulty, type GameMode } from "../config/levels";
 import type { SkinId } from "../config/skins";
 import type { ThemeId } from "../config/themes";
 import { Rng } from "../core/rng";
@@ -349,7 +349,7 @@ export class GameSession {
       leaderboard: this.leaderboard(),
       biggestBite: player.biggestBite,
     };
-    if (rank === 1 || (this.world.mode === "solo" && result.percent > 30)) audio.win();
+    if (rank === 1 || (this.world.mode === "solo" && result.percent >= DEFAULT_SOLO_STARS[0])) audio.win();
     else audio.lose();
     this.options.onHud?.(this.snapshot());
     this.options.onEnd?.(result);

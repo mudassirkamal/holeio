@@ -56,7 +56,7 @@ export default function Results() {
 
   const level = match.levelId !== null ? LEVELS.find((l) => l.id === match.levelId) : undefined;
   const nextLevel = level ? LEVELS.find((l) => l.id === level.id + 1) : undefined;
-  const won = level ? reward.stars > 0 : result.rank === 1 || (result.mode === "solo" && result.percent >= 25);
+  const { won } = reward;
   const stats: [string, string][] = [
     ["Score", result.score.toLocaleString()],
     ["Objects", result.objectsEaten.toLocaleString()],
