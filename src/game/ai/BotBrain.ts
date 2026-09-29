@@ -6,7 +6,7 @@ import type { World } from "../core/World";
 import type { Genome } from "./genome";
 import type { SkillProfile } from "./skill";
 
-export type BotMode = "farm" | "hunt" | "flee" | "roam";
+export type BotMode = "farm" | "hunt" | "flee" | "roam" | "pickup";
 
 interface FoodTarget {
   cell: number;
@@ -43,7 +43,8 @@ export function interceptTime(hunter: Hole, prey: Hole, speed: number) {
  *  3. otherwise compares the value-per-second of the best chase (intercept
  *     prediction, bonus for prey cornered against walls, revenge on whoever ate
  *     it last) against the best food area on the value field;
- *  4. sweeps individual nearby objects on the way ("micro" steering).
+ *  4. takes a detour for a power-up nearby;
+ *  5. sweeps individual nearby objects on the way ("micro" steering).
  * Its weights come from a genome evolved by self-play (`scripts/train-bots.ts`).
  */
 export class BotBrain implements HoleController {
@@ -108,7 +109,7 @@ export class BotBrain implements HoleController {
       if (other.radius > r * HOLE.eatRatio * 0.97) {
         const obvious = d < other.radius + r + 6;
         if (obvious || this.rng.chance(this.skill.threatReaction)) threats.push(other);
-      } else if (r > other.radius * HOLE.eatRatio * g.huntMargin && !other.isProtected) {
+      } else if (r > other.radius * HOLE.eatRatio * g.huntMargin && !other.isProtected && !other.hasPower("shield")) {
         if ((this.blacklist.get(other.id) ?? 0) < world.time) prey.push(other);
       } else {
         rivals.push(other);
@@ -117,8 +118,8 @@ export class BotBrain implements HoleController {
 
     this.throttle = 1;
 
-    // 1. Survival first.
-    if (!hole.isProtected && this.tryFlee(world, hole, g, threats, rivals)) {
+    // 1. Survival first (a shield makes it fearless).
+    if (!hole.isProtected && !hole.hasPower("shield") && this.tryFlee(world, hole, g, threats, rivals)) {
       this.applyNoise();
       return;
     }
@@ -138,7 +139,13 @@ export class BotBrain implements HoleController {
     const foodUtility = food ? food.utility * hole.speed : 0;
     const hunt = this.bestPrey(world, hole, g, prey, threats);
 
-    if (hunt && hunt.utility > foodUtility) {
+    // 4. A power-up nearby is worth a detour, unless a chase is about to pay off.
+    const pickup = this.bestPickup(world, hole, threats);
+    if (pickup && (!hunt || hunt.utility <= foodUtility || pickup.dist < hunt.time * hole.speed * 0.5)) {
+      this.mode = "pickup";
+      this.preyId = -1;
+      this.desired = Math.atan2(pickup.z - hole.z, pickup.x - hole.x);
+    } else if (hunt && hunt.utility > foodUtility) {
       this.chase(world, hole, g, hunt.prey, hunt.time, interval);
     } else if (food) {
       this.farm(world, hole, g, food);
@@ -238,6 +245,19 @@ export class BotBrain implements HoleController {
       // Bodyguard: an enemy closing in on a smaller teammate is a priority target.
       if (world.mode === "teams" && this.threatensTeammate(world, hole, p)) utility *= 1.6;
       if (!best || utility > best.utility) best = { prey: p, utility, time };
+    }
+    return best;
+  }
+
+  /** Nearest pickup within reach that isn't guarded by a bigger hole. */
+  private bestPickup(world: World, hole: Hole, threats: Hole[]) {
+    const range = this.skill.awareness * 0.5 + hole.radius * 2;
+    let best: { x: number; z: number; dist: number } | null = null;
+    for (const p of world.powerUps) {
+      const dist = Math.hypot(p.x - hole.x, p.z - hole.z) - hole.radius;
+      if (dist > range || (best && dist >= best.dist)) continue;
+      if (threats.some((t) => Math.hypot(t.x - p.x, t.z - p.z) < t.radius * 2 + 8)) continue;
+      best = { x: p.x, z: p.z, dist };
     }
     return best;
   }

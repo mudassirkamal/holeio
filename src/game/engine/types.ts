@@ -1,5 +1,6 @@
 import type { GameMode } from "../config/levels";
 import type { ObjectKindId } from "../config/objectCatalog";
+import type { PowerUpKind } from "../config/powerUps";
 import type { SkinId } from "../config/skins";
 import type { ClipFile } from "../clips/ClipRecorder";
 
@@ -24,6 +25,19 @@ export interface MinimapDot {
   isPlayer: boolean;
   alive: boolean;
   team: number;
+}
+
+/** A pickup on the minimap (coordinates normalized to -1..1 like the dots). */
+export interface MinimapPickup {
+  x: number;
+  z: number;
+  kind: PowerUpKind;
+}
+
+/** A power-up the player has active, with seconds left. */
+export interface ActivePower {
+  kind: PowerUpKind;
+  left: number;
 }
 
 /** Team mode: the player's team and each team's total score. */
@@ -53,6 +67,8 @@ export interface HudSnapshot {
   combo: number;
   leaderboard: LeaderboardRow[];
   minimap: MinimapDot[];
+  pickups: MinimapPickup[];
+  powers: ActivePower[];
   teams: TeamStatus | null;
   paused: boolean;
 }

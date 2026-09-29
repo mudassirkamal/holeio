@@ -1,6 +1,7 @@
 import { CITY, HOLE, PHYSICS, holeDepthForRadius, sizeLevelForScore } from "../config/constants";
 import type { GameMode } from "../config/levels";
 import { KIND, MAX_FOOT_RADIUS } from "../config/objectCatalog";
+import { POWER_UP_KINDS, POWER_UP_RULES, POWER_UPS, powerIndex, type PowerUpKind } from "../config/powerUps";
 import type { SkinId } from "../config/skins";
 import type { ThemeId } from "../config/themes";
 import { generateCity, type CityLayout } from "./cityGenerator";
@@ -33,6 +34,16 @@ export interface MatchSetup {
    * A replica only animates traffic, leaning and falls (see `replicateFall`).
    */
   replica?: boolean;
+  /** Spawn power-up pickups around the city. */
+  powerUps?: boolean;
+}
+
+export interface PowerUp {
+  id: number;
+  kind: PowerUpKind;
+  x: number;
+  z: number;
+  bornAt: number;
 }
 
 export interface Standing {
@@ -53,6 +64,7 @@ export class World {
 
   readonly objects: CityObject[] = [];
   readonly holes: Hole[] = [];
+  readonly powerUps: PowerUp[] = [];
   readonly grid: SpatialGrid<CityObject>;
   readonly valueField: ValueField;
   readonly totalValue: number;
@@ -68,12 +80,16 @@ export class World {
   private readonly falling: CityObject[] = [];
   private readonly leaning: CityObject[] = [];
   private dirty: CityObject[] = [];
+  private readonly powerUpsEnabled: boolean;
+  private nextPowerUpAt: number = POWER_UP_RULES.firstSpawn;
+  private nextPowerUpId = 0;
 
   constructor(setup: MatchSetup) {
     this.rng = new Rng(setup.seed * 7919 + 17);
     this.mode = setup.mode;
     this.duration = setup.duration;
     this.replica = setup.replica ?? false;
+    this.powerUpsEnabled = setup.powerUps ?? false;
     this.layout = generateCity(setup.themeId, setup.blocksPerSide, setup.seed);
     this.half = this.layout.half;
     this.grid = new SpatialGrid(this.half, CITY.cellSize);
@@ -180,6 +196,7 @@ export class World {
 
     if (this.running) {
       this.updateHoles(dt);
+      if (this.powerUpsEnabled) this.updatePowerUps();
       this.resolveHoleCollisions();
       this.checkEnd();
     }
@@ -258,15 +275,17 @@ export class World {
   /** Makes nearby objects lean toward the hole, and swallows the ones that fit. */
   private interact(hole: Hole, allowFalls: boolean) {
     const r = hole.radius;
-    this.grid.forEachInRadius(hole.x, hole.z, r + MAX_FOOT_RADIUS * 0.6, (obj) => {
+    // A magnet catches edible things beyond the rim; they slide in before dropping.
+    const reach = hole.hasPower("magnet") ? r * POWER_UP_RULES.magnetReach : r;
+    this.grid.forEachInRadius(hole.x, hole.z, reach + MAX_FOOT_RADIUS * 0.6, (obj) => {
       const foot = obj.kind.footRadius;
       const dx = obj.x - hole.x;
       const dz = obj.z - hole.z;
       const d = Math.hypot(dx, dz);
-      if (d > r + foot * 0.6) return;
-
       const edible = obj.kind.requiredRadius < r;
-      if (edible && d + foot * 0.35 < r) {
+      if (d > (edible ? reach : r) + foot * 0.6) return;
+
+      if (edible && d + foot * 0.35 < reach) {
         if (allowFalls) {
           this.startFall(obj, hole);
           return;
@@ -277,7 +296,7 @@ export class World {
       obj.tiltDirX = -dx * inv;
       obj.tiltDirZ = -dz * inv;
       if (edible) {
-        const overlap = clamp((r + foot * 0.6 - d) / (foot * 0.95 + 0.01), 0, 1);
+        const overlap = clamp((reach + foot * 0.6 - d) / (foot * 0.95 + 0.01), 0, 1);
         obj.tiltTarget = Math.max(obj.tiltTarget, LEAN_EDIBLE * overlap);
       } else {
         const tremble = Math.sin(this.time * 32 + obj.seed * 50) * 0.5 + 0.5;
@@ -325,6 +344,7 @@ export class World {
       spin: this.rng.range(-1.2, 1.2),
       sunk: false,
       time: 0,
+      outside: d > Math.max(0.05, hole.radius - obj.kind.footRadius * 0.4),
     };
     this.falling.push(obj);
     this.events.push({ type: "fallStart", holeId: hole.id, objectId: obj.id, kindId: obj.kind.id, x: obj.x, z: obj.z });
@@ -340,6 +360,19 @@ export class World {
       const r = hole.radius;
 
       f.time += dt;
+      if (f.outside && hole.alive) {
+        // Magnet catch: glide over the ground to the rim, then fall like everything else.
+        const allowed = Math.max(0.05, r - obj.kind.footRadius * 0.4);
+        const nd = Math.hypot(f.ox, f.oz);
+        const move = Math.min(nd, (7 + r * 1.5) * dt);
+        f.ox -= (f.ox / nd) * move;
+        f.oz -= (f.oz / nd) * move;
+        f.outside = nd - move > allowed;
+        obj.writeFallingTransform();
+        this.markDirty(obj);
+        this.falling[write++] = obj;
+        continue;
+      }
       f.vy -= PHYSICS.gravity * dt;
       const d = Math.hypot(f.ox, f.oz);
       if (d > 0.01) {
@@ -451,6 +484,7 @@ export class World {
   private updateHoles(dt: number) {
     for (const hole of this.holes) {
       if (hole.alive) {
+        for (let i = 0; i < hole.powers.length; i++) hole.powers[i] = Math.max(0, hole.powers[i] - dt);
         hole.radius = damp(hole.radius, hole.targetRadius, HOLE.growthSmoothing, dt);
         hole.protection = Math.max(0, hole.protection - dt);
         if (this.time - hole.lastEatTime > 1.2) hole.combo = 0;
@@ -475,7 +509,7 @@ export class World {
         if (this.areTeammates(a, b)) continue;
         const big = a.radius >= b.radius ? a : b;
         const small = big === a ? b : a;
-        if (big.isProtected || small.isProtected || !big.canEat(small)) continue;
+        if (big.isProtected || small.isProtected || small.hasPower("shield") || !big.canEat(small)) continue;
         const d = Math.hypot(big.x - small.x, big.z - small.z);
         if (d < big.radius - small.radius * 0.3) this.eatHole(big, small);
       }
@@ -489,6 +523,7 @@ export class World {
 
     victim.alive = false;
     victim.deaths++;
+    victim.powers.fill(0);
     victim.eatenBy = eater.id;
     victim.combo = 0;
     this.events.push({ type: "holeEaten", eaterId: eater.id, victimId: victim.id, x: victim.x, z: victim.z, gain });
@@ -501,6 +536,49 @@ export class World {
       victim.sizeLevel = sizeLevelForScore(victim.score).level;
       victim.respawnTimer = HOLE.respawnDelay;
     }
+  }
+
+  /** Collects, expires and spawns power-up pickups. */
+  private updatePowerUps() {
+    for (const hole of this.holes) {
+      if (!hole.alive) continue;
+      for (let i = this.powerUps.length - 1; i >= 0; i--) {
+        const p = this.powerUps[i];
+        if (Math.hypot(p.x - hole.x, p.z - hole.z) > hole.radius + POWER_UP_RULES.pickupReach) continue;
+        this.powerUps.splice(i, 1);
+        hole.powers[powerIndex(p.kind)] = POWER_UPS[p.kind].duration;
+        this.events.push({ type: "powerUpTaken", id: p.id, holeId: hole.id, kind: p.kind });
+      }
+    }
+    for (let i = this.powerUps.length - 1; i >= 0; i--) {
+      if (this.time - this.powerUps[i].bornAt < POWER_UP_RULES.lifetime) continue;
+      this.events.push({ type: "powerUpExpired", id: this.powerUps[i].id });
+      this.powerUps.splice(i, 1);
+    }
+    if (this.time < this.nextPowerUpAt) return;
+    this.nextPowerUpAt = this.time + POWER_UP_RULES.spawnEvery;
+    const max = POWER_UP_RULES.maxBase + Math.floor(this.holes.length / POWER_UP_RULES.holesPerExtra);
+    if (this.powerUps.length < max) this.spawnPowerUp();
+  }
+
+  /** Drops a pickup in open space, away from holes and other pickups: worth a detour. */
+  private spawnPowerUp() {
+    const margin = this.half * 0.85;
+    let best = { x: 0, z: 0, score: -Infinity };
+    for (let i = 0; i < 12; i++) {
+      const x = this.rng.range(-margin, margin);
+      const z = this.rng.range(-margin, margin);
+      let score = Infinity;
+      for (const h of this.holes) if (h.alive) score = Math.min(score, Math.hypot(h.x - x, h.z - z) - h.radius);
+      for (const p of this.powerUps) score = Math.min(score, Math.hypot(p.x - x, p.z - z));
+      if (score > best.score) best = { x, z, score };
+    }
+    const total = POWER_UP_KINDS.reduce((sum, k) => sum + POWER_UPS[k].weight, 0);
+    let roll = this.rng.range(0, total);
+    const kind = POWER_UP_KINDS.find((k) => (roll -= POWER_UPS[k].weight) < 0) ?? POWER_UP_KINDS[0];
+    const p: PowerUp = { id: this.nextPowerUpId++, kind, x: best.x, z: best.z, bornAt: this.time };
+    this.powerUps.push(p);
+    this.events.push({ type: "powerUpSpawned", id: p.id, kind, x: p.x, z: p.z });
   }
 
   private checkEnd() {
@@ -525,6 +603,17 @@ export class World {
     const obj = this.objects[objectId];
     const hole = this.holes[holeId];
     if (obj && hole && obj.phase === "standing") this.startFall(obj, hole);
+  }
+
+  /** Replica: mirrors a pickup the host spawned. */
+  addPowerUp(id: number, kind: PowerUpKind, x: number, z: number) {
+    if (!this.powerUps.some((p) => p.id === id)) this.powerUps.push({ id, kind, x, z, bornAt: this.time });
+  }
+
+  /** Replica: removes a pickup the host reported taken or expired. */
+  removePowerUp(id: number) {
+    const i = this.powerUps.findIndex((p) => p.id === id);
+    if (i >= 0) this.powerUps.splice(i, 1);
   }
 
   /** Traffic state for drift correction on clients. */

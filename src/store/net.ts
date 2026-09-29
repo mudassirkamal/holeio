@@ -59,6 +59,7 @@ export const useNet = create<NetState>()((set, get) => {
         seed: start.seed,
         bots: 0,
         difficulty: start.difficulty,
+        powerUps: start.powerUps,
         levelId: null,
         net: { room, start },
       });

@@ -9,5 +9,6 @@ export const levelMatch = (level: LevelDef): MatchConfig => ({
   seed: level.seed,
   bots: level.bots,
   difficulty: level.difficulty,
+  powerUps: false,
   levelId: level.id,
 });

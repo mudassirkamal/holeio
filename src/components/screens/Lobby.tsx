@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { DIFFICULTY_INFO, MODE_INFO, type Difficulty } from "@/game/config/levels";
+import { POWER_UPS, POWER_UP_KINDS } from "@/game/config/powerUps";
 import { TEAMS, TEAM_SIZES } from "@/game/config/teams";
 import { THEMES, THEME_ORDER } from "@/game/config/themes";
 import { NET } from "@/game/net/config";
@@ -204,6 +205,13 @@ export default function Lobby() {
             {[90, 120, 180, 240].map((d) => (
               <Pill key={d} value={d} current={s.duration} disabled={locked} onSelect={(duration) => set({ duration })}>
                 {d / 60} min
+              </Pill>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(["on", "off"] as const).map((v) => (
+              <Pill key={v} value={v} current={s.powerUps ? "on" : "off"} disabled={locked} onSelect={(on) => set({ powerUps: on === "on" })}>
+                {v === "on" ? `${POWER_UP_KINDS.map((k) => POWER_UPS[k].icon).join("")} Power-ups on` : "Power-ups off"}
               </Pill>
             ))}
           </div>

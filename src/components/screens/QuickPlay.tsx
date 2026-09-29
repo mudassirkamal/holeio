@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { DIFFICULTY_INFO, MODE_INFO, type Difficulty, type GameMode } from "@/game/config/levels";
+import { POWER_UPS, POWER_UP_KINDS } from "@/game/config/powerUps";
 import { TEAMS, TEAM_SIZES } from "@/game/config/teams";
 import { THEMES, THEME_ORDER, type ThemeId } from "@/game/config/themes";
 import { useApp } from "@/store/app";
@@ -45,6 +46,7 @@ export default function QuickPlay() {
   const [bots, setBots] = useState(9);
   const [teamSize, setTeamSize] = useState(4);
   const [blocks, setBlocks] = useState(5);
+  const [powerUps, setPowerUps] = useState<"on" | "off">("on");
   // Teams: you plus (size - 1) bot teammates against `size` bots.
   const botCount = mode === "solo" ? 0 : mode === "teams" ? teamSize * 2 - 1 : bots;
 
@@ -80,6 +82,23 @@ export default function QuickPlay() {
               </Choice>
             ))}
           </div>
+          <h2 className="mb-3 mt-5 font-display text-2xl">Power-ups</h2>
+          <div className="grid grid-cols-2 gap-2">
+            {(["on", "off"] as const).map((v) => (
+              <Choice key={v} value={v} current={powerUps} onSelect={setPowerUps}>
+                <div className="text-center">{v === "on" ? POWER_UP_KINDS.map((k) => POWER_UPS[k].icon).join(" ") + " On" : "Off"}</div>
+              </Choice>
+            ))}
+          </div>
+          {powerUps === "on" && (
+            <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-sm font-bold text-white/70">
+              {POWER_UP_KINDS.map((k) => (
+                <li key={k}>
+                  {POWER_UPS[k].icon} <span style={{ color: POWER_UPS[k].color }}>{POWER_UPS[k].name}</span>: {POWER_UPS[k].description}
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
         {mode !== "solo" && (
           <section className="panel rounded-3xl p-5 lg:col-span-2">
@@ -142,6 +161,7 @@ export default function QuickPlay() {
               seed: Math.floor(Math.random() * 1e9),
               bots: botCount,
               difficulty,
+              powerUps: powerUps === "on",
               levelId: null,
             })
           }

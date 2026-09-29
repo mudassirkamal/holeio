@@ -1,6 +1,7 @@
 import { Quaternion, Vector3 } from "three";
 import { HOLE, holeRadiusForScore, holeSpeedForRadius, sizeLevelForScore } from "../config/constants";
 import type { ObjectKind, ObjectKindId } from "../config/objectCatalog";
+import { POWER_UP_KINDS, POWER_UP_RULES, powerIndex, type PowerUpKind } from "../config/powerUps";
 import type { SkinId } from "../config/skins";
 import type { GridItem } from "./SpatialGrid";
 import type { ValueItem } from "./ValueField";
@@ -25,6 +26,8 @@ export interface FallState {
   spin: number;
   sunk: boolean;
   time: number;
+  /** Magnet catch: the object slides over the ground until it reaches the rim, then drops. */
+  outside: boolean;
 }
 
 const UP = new Vector3(0, 1, 0);
@@ -137,6 +140,8 @@ export class Hole {
   eatenBy = -1;
   /** Team index in team mode, -1 otherwise. */
   team = -1;
+  /** Seconds left on each power-up, indexed like POWER_UP_KINDS (0 = inactive). */
+  powers: number[] = POWER_UP_KINDS.map(() => 0);
 
   readonly input: HoleInput = { x: 0, z: 0, throttle: 0 };
 
@@ -148,12 +153,16 @@ export class Hole {
     public controller: HoleController | null,
   ) {}
 
+  hasPower(kind: PowerUpKind) {
+    return this.powers[powerIndex(kind)] > 0;
+  }
+
   get targetRadius() {
-    return holeRadiusForScore(this.score);
+    return holeRadiusForScore(this.score) * (this.hasPower("giant") ? POWER_UP_RULES.giantScale : 1);
   }
 
   get speed() {
-    return holeSpeedForRadius(this.radius);
+    return holeSpeedForRadius(this.radius) * (this.hasPower("turbo") ? POWER_UP_RULES.turboSpeed : 1);
   }
 
   get isProtected() {

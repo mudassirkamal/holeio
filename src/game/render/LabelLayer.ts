@@ -1,4 +1,5 @@
 import { Vector3, type PerspectiveCamera } from "three";
+import { POWER_UP_KINDS, POWER_UPS } from "../config/powerUps";
 import { SKIN_BY_ID } from "../config/skins";
 import { TEAMS } from "../config/teams";
 import type { Hole } from "../core/entities";
@@ -7,13 +8,16 @@ interface Label {
   root: HTMLDivElement;
   name: HTMLSpanElement;
   crown: HTMLSpanElement;
+  powers: HTMLSpanElement;
   /** Skin (or team) the label color was last set from. */
   colorKey: string;
+  /** Icons of the active power-ups last shown. */
+  powersKey: string;
 }
 
 const projected = new Vector3();
 
-/** Player names floating above each hole, with a crown for the current leader. */
+/** Player names floating above each hole, with a crown for the leader and active power-ups. */
 export class LabelLayer {
   private readonly labels = new Map<number, Label>();
   private readonly root: HTMLDivElement;
@@ -32,10 +36,12 @@ export class LabelLayer {
     crown.textContent = "👑";
     const name = document.createElement("span");
     name.textContent = hole.name;
-    root.append(crown, name);
+    const powers = document.createElement("span");
+    powers.className = "hole-label-powers";
+    root.append(crown, name, powers);
     if (hole.isPlayer) root.classList.add("is-player");
     this.root.appendChild(root);
-    const label = { root, name, crown, colorKey: "" };
+    const label = { root, name, crown, powers, colorKey: "", powersKey: "" };
     this.labels.set(hole.id, label);
     return label;
   }
@@ -63,6 +69,11 @@ export class LabelLayer {
       label.root.style.opacity = hole.isProtected ? "0.6" : "1";
       label.root.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
       label.crown.style.display = hole.id === leaderId ? "inline" : "none";
+      const powersKey = POWER_UP_KINDS.filter((_, i) => hole.powers[i] > 0).map((k) => POWER_UPS[k].icon).join("");
+      if (label.powersKey !== powersKey) {
+        label.powersKey = powersKey;
+        label.powers.textContent = powersKey;
+      }
     }
   }
 

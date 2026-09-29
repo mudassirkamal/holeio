@@ -1,11 +1,12 @@
 import type { Difficulty } from "../config/levels";
+import { POWER_UP_KINDS } from "../config/powerUps";
 import type { SkinId } from "../config/skins";
 import type { ThemeId } from "../config/themes";
 import type { GameEvent } from "../core/events";
 import type { World } from "../core/World";
 
 /** Bump when the wire format changes; mismatched peers are rejected. */
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 export interface PlayerProfile {
   name: string;
@@ -32,6 +33,7 @@ export interface RoomSettings {
   /** Holes per team in team mode; bots fill the empty seats. */
   teamSize: number;
   difficulty: Difficulty;
+  powerUps: boolean;
 }
 
 export interface LobbyState {
@@ -58,6 +60,7 @@ export interface MatchStart {
   duration: number;
   blocksPerSide: number;
   difficulty: Difficulty;
+  powerUps: boolean;
   roster: RosterEntry[];
 }
 
@@ -92,8 +95,8 @@ export type ControlMessage =
 
 export type RejectReason = "full" | "in-game" | "version";
 
-/** Holes are packed as flat number arrays: see `HOLE_FIELDS`. */
-export const HOLE_FIELDS = 11;
+/** Holes are packed as flat number arrays (see `packHoles`): 11 fields plus one timer per power-up. */
+export const HOLE_FIELDS = 11 + POWER_UP_KINDS.length;
 
 export type FastMessage =
   | { t: "input"; x: number; z: number; throttle: number }

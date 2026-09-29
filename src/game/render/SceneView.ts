@@ -9,6 +9,7 @@ import {
   type WebGLRenderer,
 } from "three";
 import { KIND } from "../config/objectCatalog";
+import { POWER_UPS } from "../config/powerUps";
 import { SKIN_BY_ID, type SkinParticles } from "../config/skins";
 import { THEMES, type ThemeDef } from "../config/themes";
 import type { Hole } from "../core/entities";
@@ -25,6 +26,7 @@ import { LabelLayer } from "./LabelLayer";
 import { createCityMaterial } from "./materials/cityMaterial";
 import { ObjectLayer, createScenery } from "./ObjectLayer";
 import { createComposer } from "./postprocessing";
+import { PowerUpLayer } from "./PowerUpLayer";
 import type { QualitySettings } from "./quality";
 
 export interface SceneViewOptions {
@@ -59,6 +61,7 @@ export class SceneView {
   private readonly dust: ParticleSystem;
   private readonly sparks: ParticleSystem;
   private readonly shockwaves = new Shockwaves();
+  private readonly powerUps = new PowerUpLayer();
   private readonly labels: LabelLayer | null;
   private time = 0;
   private width = 1;
@@ -104,7 +107,7 @@ export class SceneView {
 
     this.dust = new ParticleSystem(Math.round(q.particles * 0.5));
     this.sparks = new ParticleSystem(q.particles, AdditiveBlending);
-    this.scene.add(this.dust.points, this.sparks.points, this.shockwaves.group);
+    this.scene.add(this.dust.points, this.sparks.points, this.shockwaves.group, this.powerUps.group);
 
     this.labels = options.overlay ? new LabelLayer(options.overlay) : null;
     this.composer = q.postprocessing ? createComposer(renderer, this.scene, this.rig.camera, q, this.theme.lighting) : null;
@@ -175,6 +178,17 @@ export class SceneView {
           if (e.eaterId === this.focusId || e.victimId === this.focusId) this.rig.addShake(1.2);
           break;
         }
+        case "powerUpSpawned":
+          if (this.isNearCamera(e.x, e.z)) this.shockwaves.spawn(e.x, e.z, 0.5, 5, POWER_UPS[e.kind].color, 0.7);
+          break;
+        case "powerUpTaken": {
+          const hole = holes[e.holeId];
+          if (!this.isNearCamera(hole.x, hole.z)) break;
+          const color = POWER_UPS[e.kind].color;
+          this.shockwaves.spawn(hole.x, hole.z, hole.radius, hole.radius * 2.2 + 3, color, 0.7);
+          this.sparks.emit({ x: hole.x, y: 0.4, z: hole.z, ring: hole.radius, count: 36, color, speed: 3, up: 6, size: 0.55 + hole.radius * 0.03, life: 0.9, gravity: 5 });
+          break;
+        }
         case "holeRespawned":
           if (e.holeId === this.focusId) {
             const hole = holes[e.holeId];
@@ -211,6 +225,7 @@ export class SceneView {
 
     const holes = this.world.holes;
     for (let i = 0; i < holes.length; i++) this.holeViews[i].update(holes[i], dt, this.time);
+    this.powerUps.sync(this.world, this.time);
 
     // Demo mode keeps the camera on the most interesting hole.
     if (this.options.focusId === null && !this.closeUp) {
@@ -252,8 +267,10 @@ export class SceneView {
     if (emits <= 0) return;
     this.trailBudget -= emits;
     for (const hole of this.world.holes) {
+      if (!hole.alive || !this.isNearCamera(hole.x, hole.z)) continue;
+      if (hole.hasPower("turbo")) this.emitTurboStreak(hole, emits);
       const skin = SKIN_BY_ID[hole.skinId];
-      if (skin.particles === "none" || !hole.alive || !this.isNearCamera(hole.x, hole.z)) continue;
+      if (skin.particles === "none") continue;
       const s = TRAIL_SETTINGS[skin.particles];
       const system = s.additive ? this.sparks : this.dust;
       system.emit({
@@ -274,6 +291,26 @@ export class SceneView {
     }
   }
 
+  /** Turbo: bright sparks streaming off the back of the hole. */
+  private emitTurboStreak(hole: Hole, emits: number) {
+    const speed = Math.hypot(hole.vx, hole.vz);
+    if (speed < 1) return;
+    this.sparks.emit({
+      x: hole.x - (hole.vx / speed) * hole.radius,
+      y: 0.2,
+      z: hole.z - (hole.vz / speed) * hole.radius,
+      ring: hole.radius * 0.35,
+      count: Math.min(6, emits * 2),
+      color: POWER_UPS.turbo.color,
+      speed: 0.6,
+      up: 1.2,
+      size: 0.45 + hole.radius * 0.03,
+      life: 0.45,
+      gravity: 0,
+      drag: 3,
+    });
+  }
+
   render() {
     if (this.composer) this.composer.render();
     else this.renderer.render(this.scene, this.rig.camera);
@@ -291,6 +328,7 @@ export class SceneView {
     this.dust.dispose();
     this.sparks.dispose();
     this.shockwaves.dispose();
+    this.powerUps.dispose();
     this.labels?.dispose();
     this.renderer.renderLists.dispose();
   }

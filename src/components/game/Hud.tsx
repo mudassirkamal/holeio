@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { DEFAULT_SOLO_STARS, LEVELS, MODE_INFO } from "@/game/config/levels";
+import { POWER_UPS } from "@/game/config/powerUps";
 import { SKIN_BY_ID, type SkinId } from "@/game/config/skins";
 import { TEAMS } from "@/game/config/teams";
 import type { HudSnapshot } from "@/game/engine/types";
+import { powerUpBadge } from "@/game/render/powerUpBadge";
 import { isMobileDevice } from "@/game/render/quality";
 import { useApp } from "@/store/app";
 import { useNet } from "@/store/net";
@@ -156,6 +158,7 @@ function Minimap({ hud }: { hud: HudSnapshot }) {
     ctx.stroke();
     const pad = 10;
     const scale = (size - pad * 2) / 2;
+    for (const p of hud.pickups) ctx.drawImage(powerUpBadge(p.kind), pad + (p.x + 1) * scale - 7, pad + (p.z + 1) * scale - 7, 14, 14);
     for (const dot of hud.minimap) {
       if (!dot.alive) continue;
       const x = pad + (dot.x + 1) * scale;
@@ -173,6 +176,35 @@ function Minimap({ hud }: { hud: HudSnapshot }) {
     }
   }, [hud]);
   return <canvas ref={ref} width={140} height={140} className="h-28 w-28 sm:h-36 sm:w-36 short:h-24 short:w-24" />;
+}
+
+/** The player's active power-ups, each with a draining timer bar. */
+function ActivePowers({ hud }: { hud: HudSnapshot }) {
+  if (hud.powers.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      {hud.powers.map(({ kind, left }) => {
+        const power = POWER_UPS[kind];
+        return (
+          <div
+            key={kind}
+            className={`flex w-40 items-center gap-2 rounded-2xl bg-black/50 px-2.5 py-1 ring-1 ring-white/20 animate-pop short:w-32 short:py-0.5 ${left < 1.5 ? "animate-pulse" : ""}`}
+          >
+            <span className="text-lg short:text-base">{power.icon}</span>
+            <div className="flex-1">
+              <div className="flex justify-between text-xs font-extrabold leading-tight">
+                <span style={{ color: power.color }}>{power.name}</span>
+                <span className="tabular-nums text-white/80">{Math.ceil(left)}s</span>
+              </div>
+              <div className="mt-0.5 h-1.5 overflow-hidden rounded-full bg-white/15">
+                <div className="h-full rounded-full" style={{ width: `${(left / power.duration) * 100}%`, background: power.color }} />
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 /** Current time, refreshed on an interval so time-based UI can expire. */
@@ -321,6 +353,7 @@ export default function Hud() {
             <SizeMeter hud={hud} />
           </div>
           {hud.mode === "solo" && <SoloProgress hud={hud} />}
+          <ActivePowers hud={hud} />
           {sessionRef.current?.canRecordClips && hud.countdown <= 0 && <ClipButton />}
         </div>
         <div className="absolute left-1/2 top-4 hidden -translate-x-1/2 sm:block short:top-2">

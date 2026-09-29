@@ -142,9 +142,13 @@ canvas {
     0 0 0 3px rgb(255 255 255 / 0.85),
     0 4px 16px rgb(0 0 0 / 0.4);
 }
-.hole-label-crown {
+.hole-label-crown,
+.hole-label-powers {
   font-size: 16px;
   filter: drop-shadow(0 2px 2px rgb(0 0 0 / 0.4));
+}
+.hole-label-powers:empty {
+  display: none;
 }
 
 .score-popup {
@@ -167,6 +171,10 @@ canvas {
 .score-popup.is-kill {
   font-size: 30px;
   color: #ff5c8a;
+}
+.score-popup.is-power {
+  font-size: 30px;
+  color: #7df9ff;
 }
 @keyframes popup-rise {
   0% { opacity: 0; transform: translate(-50%, -20%) scale(0.6); }

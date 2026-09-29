@@ -1,7 +1,9 @@
 import {
+  AdditiveBlending,
   AlwaysStencilFunc,
   BackSide,
   CircleGeometry,
+  Color,
   CylinderGeometry,
   EqualStencilFunc,
   Group,
@@ -11,9 +13,12 @@ import {
   NotEqualStencilFunc,
   ReplaceStencilOp,
   RingGeometry,
+  ShaderMaterial,
+  SphereGeometry,
   type Material,
 } from "three";
 import { holeDepthForRadius } from "../config/constants";
+import { POWER_UP_RULES, POWER_UPS, powerIndex, type PowerUpKind } from "../config/powerUps";
 import type { SkinId } from "../config/skins";
 import type { Hole } from "../core/entities";
 import { clamp } from "../core/math";
@@ -34,6 +39,93 @@ const shaftGeometry = new CylinderGeometry(1, 1, 1, 72, 1, true).translate(0, -0
 const capGeometry = new CircleGeometry(1.02, 48).rotateX(-Math.PI / 2);
 const rimGeometry = new RingGeometry(1, 1 + RIM_WIDTH, 128, 1).rotateX(-Math.PI / 2);
 const haloGeometry = new RingGeometry(1 + RIM_WIDTH * 0.8, 1.42, 96, 1).rotateX(-Math.PI / 2);
+const bubbleGeometry = new SphereGeometry(1, 48, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+const magnetGeometry = new RingGeometry(1.1, POWER_UP_RULES.magnetReach, 128, 1).rotateX(-Math.PI / 2);
+const auraGeometry = new RingGeometry(1, 1.6, 96, 1).rotateX(-Math.PI / 2);
+
+const GROUND_VERTEX = /* glsl */ `
+  varying vec2 vLocal;
+  void main() {
+    vLocal = position.xz;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+/** Additive glow shared by the power-up effects around a hole. */
+function glowMaterial(kind: PowerUpKind, fragmentShader: string, vertexShader = GROUND_VERTEX) {
+  return new ShaderMaterial({
+    uniforms: { uColor: { value: new Color(POWER_UPS[kind].color) }, uAlpha: { value: 0 }, uTime: { value: 0 } },
+    vertexShader,
+    fragmentShader,
+    transparent: true,
+    depthWrite: false,
+    blending: AdditiveBlending,
+  });
+}
+
+/** Shield: a fresnel bubble with a slow shimmer rising over it. */
+const BUBBLE_VERTEX = /* glsl */ `
+  varying vec3 vNormal;
+  varying vec3 vView;
+  varying float vHeight;
+  void main() {
+    vec4 world = modelMatrix * vec4(position, 1.0);
+    vNormal = normalize(mat3(modelMatrix) * normal);
+    vView = normalize(cameraPosition - world.xyz);
+    vHeight = position.y;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+const BUBBLE_FRAGMENT = /* glsl */ `
+  uniform vec3 uColor;
+  uniform float uAlpha;
+  uniform float uTime;
+  varying vec3 vNormal;
+  varying vec3 vView;
+  varying float vHeight;
+  void main() {
+    float fresnel = pow(1.0 - abs(dot(normalize(vNormal), normalize(vView))), 2.5);
+    float shimmer = 0.5 + 0.5 * sin(vHeight * 18.0 - uTime * 4.0);
+    float glow = fresnel * 0.9 + shimmer * 0.08 + 0.04;
+    gl_FragColor = vec4(uColor * glow * uAlpha, 1.0);
+    #include <colorspace_fragment>
+  }
+`;
+
+/** Magnet: chevrons sweeping inward across the pull range, with a crisp outer edge. */
+const MAGNET_FRAGMENT = /* glsl */ `
+  uniform vec3 uColor;
+  uniform float uAlpha;
+  uniform float uTime;
+  varying vec2 vLocal;
+  void main() {
+    float r = length(vLocal);
+    float t = (r - 1.1) / ${(POWER_UP_RULES.magnetReach - 1.1).toFixed(3)};
+    float edge = smoothstep(0.9, 0.97, t) * smoothstep(1.0, 0.97, t);
+    float sweep = smoothstep(0.6, 1.0, fract(t * 3.0 + uTime * 1.6)) * t;
+    gl_FragColor = vec4(uColor * (edge * 1.4 + sweep * 0.8) * uAlpha, 1.0);
+    #include <colorspace_fragment>
+  }
+`;
+
+/** Giant: a pulsing glow just outside the rim. */
+const AURA_FRAGMENT = /* glsl */ `
+  uniform vec3 uColor;
+  uniform float uAlpha;
+  uniform float uTime;
+  varying vec2 vLocal;
+  void main() {
+    float r = length(vLocal);
+    float glow = smoothstep(1.6, 1.12, r) * smoothstep(1.0, 1.1, r);
+    float pulse = 0.65 + 0.35 * sin(uTime * 6.0 - r * 10.0);
+    gl_FragColor = vec4(uColor * glow * pulse * uAlpha, 1.0);
+    #include <colorspace_fragment>
+  }
+`;
+
+/** Effects fade in over this long, and blink during their last seconds. */
+const EFFECT_FADE = 0.25;
+const EFFECT_WARN = 1.5;
 
 /** Ground decals (rims, halos) are cut away inside any hole's opening. */
 function stencilOutside(material: Material) {
@@ -72,6 +164,7 @@ export class HoleView {
   private readonly shaft: Mesh;
   private readonly cap: Mesh;
   private readonly materials: Material[];
+  private readonly effects: { kind: PowerUpKind; material: ShaderMaterial; mesh: Mesh; alpha: number }[];
   private phase: Phase = "alive";
   private phaseTime = 0;
   private scale = 1;
@@ -112,8 +205,23 @@ export class HoleView {
     halo.position.y = 0.03;
     halo.renderOrder = 4;
 
-    this.materials = [discMaterial, shaftMaterial, capMaterial, rimMaterial, haloMaterial];
-    for (const m of [disc, this.shaft, this.cap, rim, halo]) {
+    const bubble = new Mesh(bubbleGeometry, glowMaterial("shield", BUBBLE_FRAGMENT, BUBBLE_VERTEX));
+    bubble.scale.set(1.2, 0.6, 1.2);
+    bubble.renderOrder = 9;
+    const magnet = new Mesh(magnetGeometry, stencilOutside(glowMaterial("magnet", MAGNET_FRAGMENT)));
+    magnet.position.y = 0.05;
+    magnet.renderOrder = 6;
+    const aura = new Mesh(auraGeometry, stencilOutside(glowMaterial("giant", AURA_FRAGMENT)));
+    aura.position.y = 0.05;
+    aura.renderOrder = 6;
+    this.effects = [
+      { kind: "shield", mesh: bubble, material: bubble.material as ShaderMaterial, alpha: 0 },
+      { kind: "magnet", mesh: magnet, material: magnet.material as ShaderMaterial, alpha: 0 },
+      { kind: "giant", mesh: aura, material: aura.material as ShaderMaterial, alpha: 0 },
+    ];
+
+    this.materials = [discMaterial, shaftMaterial, capMaterial, rimMaterial, haloMaterial, ...this.effects.map((e) => e.material)];
+    for (const m of [disc, this.shaft, this.cap, rim, halo, bubble, magnet, aura]) {
       m.frustumCulled = false;
       this.group.add(m);
     }
@@ -185,6 +293,18 @@ export class HoleView {
 
     // Blink while protected after spawning.
     this.uniforms.uOpacity.value = hole.isProtected ? 0.45 + 0.55 * Math.abs(Math.sin(time * 9)) : 1;
+    this.updateEffects(hole, dt, time);
+  }
+
+  private updateEffects(hole: Hole, dt: number, time: number) {
+    for (const effect of this.effects) {
+      const left = hole.alive ? hole.powers[powerIndex(effect.kind)] : 0;
+      effect.alpha = clamp(effect.alpha + (left > 0 ? dt : -dt) / EFFECT_FADE, 0, 1);
+      effect.mesh.visible = effect.alpha > 0;
+      const blink = left > 0 && left < EFFECT_WARN && Math.sin(time * 16) < 0 ? 0.25 : 1;
+      effect.material.uniforms.uAlpha.value = effect.alpha * blink;
+      effect.material.uniforms.uTime.value = time;
+    }
   }
 
   dispose() {

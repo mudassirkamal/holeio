@@ -7,6 +7,7 @@ import { biteName } from "../config/objectNames";
 import { createBotBrain, createBots } from "../ai/roster";
 import { sizeLevelForScore } from "../config/constants";
 import { DEFAULT_SOLO_STARS, type Difficulty, type GameMode } from "../config/levels";
+import { POWER_UPS, POWER_UP_KINDS } from "../config/powerUps";
 import { winningTeam } from "../config/teams";
 import type { SkinId } from "../config/skins";
 import type { ThemeId } from "../config/themes";
@@ -35,6 +36,8 @@ export interface MatchConfig {
   seed: number;
   bots: number;
   difficulty: Difficulty;
+  /** Spawn power-up pickups (campaign levels are balanced without them). */
+  powerUps: boolean;
   levelId: number | null;
   /** Present for online matches. */
   net?: NetMatch;
@@ -190,6 +193,7 @@ export class GameSession {
       blocksPerSide: start?.blocksPerSide ?? match?.blocksPerSide ?? 5,
       holes,
       replica: this.net ? !this.net.room.isHost : false,
+      powerUps: match?.powerUps ?? true,
     });
 
     this.playerId = this.world.player?.id ?? null;
@@ -493,6 +497,14 @@ export class GameSession {
           });
           break;
         }
+        case "powerUpTaken":
+          if (e.holeId === this.playerId) {
+            const power = POWER_UPS[e.kind];
+            audio.powerUp();
+            haptics.pulse([15, 30, 15]);
+            this.view.popup(`${power.icon} ${power.name.toUpperCase()}!`, "is-power");
+          }
+          break;
         case "matchEnd":
           if (this.isDemo) this.options.onDemoEnd?.();
           break;
@@ -576,6 +588,8 @@ export class GameSession {
       combo: player?.combo ?? 0,
       leaderboard: this.leaderboard(),
       minimap: w.holes.map((h) => ({ x: h.x / w.half, z: h.z / w.half, r: h.radius / w.half, skinId: h.skinId, isPlayer: h.isPlayer, alive: h.alive, team: h.team })),
+      pickups: w.powerUps.map((p) => ({ x: p.x / w.half, z: p.z / w.half, kind: p.kind })),
+      powers: player?.alive ? POWER_UP_KINDS.flatMap((kind, i) => (player.powers[i] > 0 ? [{ kind, left: player.powers[i] }] : [])) : [],
       teams: this.teamStatus(),
       paused: this.paused,
     };

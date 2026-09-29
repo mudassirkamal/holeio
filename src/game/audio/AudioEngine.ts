@@ -161,6 +161,13 @@ class AudioEngine {
     this.burst(0.8, v * 0.6, 500, 0, this.sfxGain, 0.5);
   }
 
+  /** Power-up collected: a quick upward sweep with a sparkle on top. */
+  powerUp() {
+    if (!this.sfxEnabled) return;
+    this.tone(NOTE(7), 0.25, "triangle", 0.12, NOTE(19));
+    [12, 16, 19, 24].forEach((s, i) => this.tone(NOTE(s + 12), 0.12, "sine", 0.07, undefined, 0.06 + i * 0.05));
+  }
+
   combo(level: number) {
     if (!this.sfxEnabled) return;
     this.tone(NOTE(12 + Math.min(level, 12)), 0.15, "square", 0.07);

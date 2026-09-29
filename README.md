@@ -20,6 +20,14 @@ Built with **Next.js 16**, **React 19**, **Three.js** and **TypeScript**.
   **Teams** — Red vs Blue from 2v2 to 6v6, where teammates can't eat each other and the
   team with the biggest combined size wins. Bots play as teammates too and defend
   smaller teammates from enemies.
+- **Power-ups** that spawn around the city in Quick Play and online matches (switch them
+  off in the match settings): ⚡ **Turbo** (50% faster), 🧲 **Magnet** (pulls in anything
+  you can swallow within 1.5× your size — it slides to the rim and drops in), 🛡️ **Shield**
+  (nobody can swallow you) and 🍄 **Giant** (35% bigger for a while). Each pickup glows
+  with a light beam, shows on the minimap and blinks before it fades; active power-ups
+  get a timer in the HUD, an effect around the hole and an icon on the name tag. Bots
+  detour for nearby pickups and play fearless while shielded. The 20 campaign levels are
+  balanced without them.
 - **Shareable highlight clips**: the game keeps the last seconds of play encoded in
   memory and automatically cuts your best moment (kills, skyscrapers, big combos) into a
   short video with sound, name tags, a caption and a watermark. Tap 🎬 to clip any
@@ -58,7 +66,7 @@ npm run dev        # http://localhost:3000
 npm run build      # production build (deploy to Vercel, or `npm start`)
 npm run lint
 npm run typecheck
-npm run simulate -- metro classic 9 hard 6   # headless match for balancing
+npm run simulate -- metro classic 9 hard 6 7 on   # headless match (theme mode bots difficulty blocks seed power-ups)
 npm run balance                              # campaign difficulty check
 npm run lan                                  # build + serve for offline LAN play (HTTPS :8443)
 npm run train -- 48 26                       # re-evolve the bot brains
@@ -71,7 +79,7 @@ Open **Multiplayer** from the main menu:
 | Option | What it does |
 |---|---|
 | **Quick Match** | Joins an open public room, or hosts one if none is free. Public rooms start automatically 20 s after a second player joins; bots fill empty seats. |
-| **Private Room** | Creates a room with a 5-letter code and an invite link (`?room=CODE`) to share with friends anywhere. The host picks mode (Classic, Battle Royale or Teams), city, map size, length, bot count/team size and bot difficulty. In Teams, players pick Red or Blue (or the host shuffles) and bots fill the empty seats. |
+| **Private Room** | Creates a room with a 5-letter code and an invite link (`?room=CODE`) to share with friends anywhere. The host picks mode (Classic, Battle Royale or Teams), city, map size, length, bot count/team size, bot difficulty and whether power-ups spawn. In Teams, players pick Red or Blue (or the host shuffles) and bots fill the empty seats. |
 | **Join with a code** | Enter a friend's room code. |
 | **Local network** | Players on the same Wi-Fi use private rooms; game traffic flows directly between the devices. For play **without internet**, run `npm run lan` on one computer and open the address it prints on every device. |
 
@@ -94,8 +102,9 @@ Browsers only allow the microphone on HTTPS pages, which the deployed site and
   the built-in one when served by `npm run lan`. A TURN relay (below) covers players
   who can't connect directly.
 - The **host's browser is authoritative**: it runs the simulation, the bots and the
-  rules. Clients send their input (30 Hz) and receive hole snapshots (20 Hz) plus
-  gameplay events (swallows, kills, level-ups) over reliable/unordered data channels.
+  rules. Clients send their input (30 Hz) and receive hole snapshots (20 Hz, including
+  power-up timers) plus gameplay events (swallows, kills, level-ups, power-ups spawned
+  and collected) over reliable/unordered data channels.
 - Clients **predict their own hole** so steering feels instant, interpolate other holes
   100 ms in the past, and animate falls locally from host events. Traffic is
   deterministic (each car has its own random stream), with a small correction every

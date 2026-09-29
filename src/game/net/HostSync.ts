@@ -45,6 +45,7 @@ export function packHoles(world: World) {
       round2(h.protection),
       h.combo,
     );
+    for (const t of h.powers) data.push(Math.round(t * 10) / 10);
   }
   return data;
 }

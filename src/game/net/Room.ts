@@ -82,6 +82,7 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   bots: 5,
   teamSize: 4,
   difficulty: "normal",
+  powerUps: true,
 };
 
 async function createPeer(id?: string): Promise<Peer> {
@@ -454,6 +455,7 @@ export class Room extends Emitter<RoomEvents> {
       duration: s.duration,
       blocksPerSide: s.blocksPerSide,
       difficulty: s.difficulty,
+      powerUps: s.powerUps,
       roster,
     };
     this.lobby.phase = "playing";

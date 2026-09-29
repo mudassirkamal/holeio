@@ -1,4 +1,5 @@
 import { KIND } from "../config/objectCatalog";
+import { POWER_UP_KINDS } from "../config/powerUps";
 import type { Hole } from "../core/entities";
 import type { GameEvent } from "../core/events";
 import type { World } from "../core/World";
@@ -97,6 +98,7 @@ export class ClientSync {
     hole.respawnTimer = f[8];
     hole.protection = f[9];
     hole.combo = f[10];
+    for (let i = 0; i < hole.powers.length; i++) hole.powers[i] = f[11 + i];
   }
 
   private predictOwn(hole: Hole, latest: Sample, dt: number) {
@@ -155,6 +157,7 @@ export class ClientSync {
   /** Only accept events that reference holes, objects and kinds that exist. */
   private isValid(e: GameEvent) {
     const hole = (id: unknown) => Number.isInteger(id) && (id as number) >= 0 && (id as number) < this.world.holes.length;
+    const powerUp = (id: unknown, kind: unknown) => Number.isInteger(id) && POWER_UP_KINDS.includes(kind as never);
     switch (e?.type) {
       case "fallStart":
         return hole(e.holeId) && Number.isInteger(e.objectId) && e.objectId >= 0 && e.objectId < this.world.objects.length;
@@ -166,6 +169,12 @@ export class ClientSync {
         return hole(e.eaterId) && hole(e.victimId) && Number.isFinite(e.gain);
       case "holeRespawned":
         return hole(e.holeId);
+      case "powerUpSpawned":
+        return powerUp(e.id, e.kind) && Number.isFinite(e.x) && Number.isFinite(e.z);
+      case "powerUpTaken":
+        return powerUp(e.id, e.kind) && hole(e.holeId);
+      case "powerUpExpired":
+        return Number.isInteger(e.id);
       default:
         return false;
     }
@@ -191,6 +200,8 @@ export class ClientSync {
         victim.eatenBy = e.eaterId;
       }
       if (e.type === "levelUp") this.world.holes[e.holeId].sizeLevel = e.level;
+      if (e.type === "powerUpSpawned") this.world.addPowerUp(e.id, e.kind, e.x, e.z);
+      if (e.type === "powerUpTaken" || e.type === "powerUpExpired") this.world.removePowerUp(e.id);
       forward.push(e);
     }
     return forward;
