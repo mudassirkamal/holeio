@@ -4,7 +4,7 @@ import { create } from "zustand";
 import type { MatchConfig } from "@/game/engine/GameSession";
 import type { FeedItem, HudSnapshot, MatchResult } from "@/game/engine/types";
 
-export type Screen = "menu" | "levels" | "quickplay" | "skins" | "settings" | "playing";
+export type Screen = "menu" | "levels" | "quickplay" | "skins" | "settings" | "multiplayer" | "lobby" | "playing";
 
 export interface FeedEntry {
   id: number;
@@ -37,6 +37,8 @@ interface AppState {
   pushFeed: (item: FeedItem) => void;
   finish: (result: MatchResult, reward: Reward) => void;
   quitToMenu: () => void;
+  /** Online: leave the finished match and show the room lobby again. */
+  backToLobby: () => void;
   setPreviewSkin: (id: string | null) => void;
 }
 
@@ -61,5 +63,6 @@ export const useApp = create<AppState>()((set) => ({
     set((s) => ({ feed: [...s.feed.slice(-5), { id: ++feedId, item, at: performance.now() }] })),
   finish: (result, reward) => set({ result, reward }),
   quitToMenu: () => set({ screen: "menu", match: null, hud: null, feed: [], result: null, reward: null, paused: false }),
+  backToLobby: () => set({ screen: "lobby", match: null, hud: null, feed: [], result: null, reward: null, paused: false }),
   setPreviewSkin: (id) => set({ previewSkin: id }),
 }));

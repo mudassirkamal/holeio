@@ -1,6 +1,6 @@
 import { Vector3, WebGLRenderer } from "three";
 import { audio } from "../audio/AudioEngine";
-import { createBots } from "../ai/roster";
+import { createBotBrain, createBots } from "../ai/roster";
 import { sizeLevelForScore } from "../config/constants";
 import { DEFAULT_SOLO_STARS, type Difficulty, type GameMode } from "../config/levels";
 import type { SkinId } from "../config/skins";
@@ -8,9 +8,18 @@ import type { ThemeId } from "../config/themes";
 import { Rng } from "../core/rng";
 import { World, type HoleSetup } from "../core/World";
 import { HumanInput, type JoystickState } from "../input/HumanInput";
+import { ClientSync } from "../net/ClientSync";
+import { HostSync, RemoteController } from "../net/HostSync";
+import type { HoleStats, MatchStart } from "../net/protocol";
+import type { Room } from "../net/Room";
 import { QUALITY, type QualityLevel } from "../render/quality";
 import { SceneView } from "../render/SceneView";
 import type { FeedItem, HudSnapshot, LeaderboardRow, MatchResult } from "./types";
+
+export interface NetMatch {
+  room: Room;
+  start: MatchStart;
+}
 
 export interface MatchConfig {
   mode: GameMode;
@@ -21,6 +30,8 @@ export interface MatchConfig {
   bots: number;
   difficulty: Difficulty;
   levelId: number | null;
+  /** Present for online matches. */
+  net?: NetMatch;
 }
 
 export interface SessionOptions {
@@ -36,6 +47,8 @@ export interface SessionOptions {
   onFeed?: (item: FeedItem) => void;
   onEnd?: (result: MatchResult) => void;
   onDemoEnd?: () => void;
+  /** Online: distance in meters from the player's hole to each remote player's hole. */
+  onProximity?: (distances: Map<string, number>) => void;
 }
 
 const FIXED_DT = 1 / 60;
@@ -55,9 +68,31 @@ export function createRenderer(canvas: HTMLCanvasElement, quality: QualityLevel)
   return renderer;
 }
 
+/** Hole setups for an online match, in roster order (hole id = roster index). */
+function netHoles(net: NetMatch, rng: Rng) {
+  const { room, start } = net;
+  const remotes = new Map<string, { holeId: number; controller: RemoteController }>();
+  const holes: HoleSetup[] = start.roster.map((entry, i) => {
+    const isMe = entry.peerId === room.myPeerId;
+    let controller: HoleSetup["controller"] = null;
+    if (room.isHost && !isMe) {
+      if (entry.peerId === null) {
+        controller = createBotBrain(i, start.difficulty, rng);
+      } else {
+        const remote = new RemoteController();
+        remotes.set(entry.peerId, { holeId: i, controller: remote });
+        controller = remote;
+      }
+    }
+    return { name: entry.name, skinId: entry.skinId, isPlayer: isMe, controller };
+  });
+  return { holes, remotes };
+}
+
 /**
  * One running match (or menu demo): owns the world simulation, the scene view,
- * player input and the frame loop, and reports HUD state to the UI.
+ * player input and the frame loop, and reports HUD state to the UI. Online, the host's
+ * session is authoritative (HostSync) and clients run a replica (ClientSync).
  */
 export class GameSession {
   readonly world: World;
@@ -66,7 +101,12 @@ export class GameSession {
   private readonly playerId: number | null;
   private readonly featuredId: number | null;
   private readonly isDemo: boolean;
+  private readonly net: NetMatch | null;
+  private readonly hostSync: HostSync | null = null;
+  private readonly clientSync: ClientSync | null = null;
+  private readonly botIds: Set<number>;
   private frame = 0;
+  private backgroundTimer = 0;
   private lastTime = 0;
   private accumulator = 0;
   private countdown = COUNTDOWN;
@@ -75,6 +115,7 @@ export class GameSession {
   private ended = false;
   private disposed = false;
   private hudTimer = 0;
+  private proximityTimer = 0;
   private popupPoints = 0;
   private popupTimer = 0;
   private readonly screenPos = new Vector3();
@@ -85,33 +126,42 @@ export class GameSession {
   ) {
     const { match } = options;
     this.isDemo = match === null;
-    const seed = match?.seed ?? Math.floor(Math.random() * 1e9);
+    this.net = match?.net ?? null;
+    const seed = this.net?.start.seed ?? match?.seed ?? Math.floor(Math.random() * 1e9);
     const rng = new Rng(seed ^ 0x5bd1e995);
 
-    const holes: HoleSetup[] = [];
-    if (match && match.mode !== "solo") holes.push(...createBots(match.bots, match.difficulty, rng, options.playerSkin));
-    if (match) {
-      holes.splice(rng.int(0, holes.length), 0, {
-        name: options.playerName,
-        skinId: options.playerSkin,
-        isPlayer: true,
-        controller: null,
-      });
+    let holes: HoleSetup[];
+    let remotes = new Map<string, { holeId: number; controller: RemoteController }>();
+    if (this.net) {
+      ({ holes, remotes } = netHoles(this.net, rng));
+      this.botIds = new Set(this.net.start.roster.flatMap((e, i) => (e.peerId === null ? [i] : [])));
+    } else if (match) {
+      holes = match.mode === "solo" ? [] : createBots(match.bots, match.difficulty, rng, options.playerSkin);
+      holes.splice(rng.int(0, holes.length), 0, { name: options.playerName, skinId: options.playerSkin, isPlayer: true, controller: null });
+      this.botIds = new Set(holes.flatMap((h, i) => (h.isPlayer ? [] : [i])));
     } else {
-      holes.push(...createBots(9, "hard", rng, options.playerSkin));
+      holes = createBots(9, "hard", rng, options.playerSkin);
       holes[0] = { ...holes[0], name: options.playerName, skinId: options.playerSkin };
+      this.botIds = new Set(holes.map((_, i) => i));
     }
 
+    const start = this.net?.start;
     this.world = new World({
       seed,
-      themeId: match?.themeId ?? options.demoTheme ?? "metro",
-      mode: match?.mode ?? "classic",
-      duration: match?.duration ?? DEMO_DURATION,
-      blocksPerSide: match?.blocksPerSide ?? 5,
+      themeId: start?.themeId ?? match?.themeId ?? options.demoTheme ?? "metro",
+      mode: start?.mode ?? match?.mode ?? "classic",
+      duration: start?.duration ?? match?.duration ?? DEMO_DURATION,
+      blocksPerSide: start?.blocksPerSide ?? match?.blocksPerSide ?? 5,
       holes,
+      replica: this.net ? !this.net.room.isHost : false,
     });
 
     this.playerId = this.world.player?.id ?? null;
+    if (this.net && this.playerId !== null) {
+      if (this.net.room.isHost) this.hostSync = new HostSync(this.net.room, this.world, remotes, this.net.start.difficulty, rng);
+      else this.clientSync = new ClientSync(this.net.room, this.world, this.playerId);
+    }
+
     this.featuredId = this.isDemo ? 0 : null;
     this.view = new SceneView(renderer, this.world, {
       quality: QUALITY[options.quality],
@@ -131,6 +181,10 @@ export class GameSession {
     return this.input?.joystick ?? null;
   }
 
+  get isOnline() {
+    return this.net !== null;
+  }
+
   start() {
     this.lastTime = performance.now();
     const loop = (now: number) => {
@@ -141,10 +195,22 @@ export class GameSession {
       this.tick(dt);
     };
     this.frame = requestAnimationFrame(loop);
+
+    // Browsers stop rAF in background tabs; an online host must keep simulating.
+    if (this.hostSync) {
+      this.backgroundTimer = window.setInterval(() => {
+        if (!document.hidden) return;
+        const now = performance.now();
+        const dt = Math.min(1, (now - this.lastTime) / 1000);
+        this.lastTime = now;
+        this.simulate(dt, 60);
+      }, 250);
+    }
   }
 
+  /** Online matches can't be paused: the world keeps going for everyone else. */
   pause() {
-    if (this.isDemo || this.ended) return;
+    if (this.isDemo || this.ended || this.net) return;
     this.paused = true;
   }
 
@@ -175,19 +241,24 @@ export class GameSession {
     if (enabled && this.featuredId !== null) this.view.setFocus(this.featuredId);
   }
 
+  private simulate(dt: number, maxSteps: number) {
+    if (this.countdown > 0) this.updateCountdown(dt);
+    this.accumulator += dt;
+    let steps = 0;
+    while (this.accumulator >= FIXED_DT && steps < maxSteps) {
+      this.step();
+      this.accumulator -= FIXED_DT;
+      steps++;
+    }
+    if (steps === maxSteps) this.accumulator = 0;
+  }
+
   private tick(dt: number) {
     if (!this.paused) {
-      if (this.countdown > 0) this.updateCountdown(dt);
-      this.accumulator += dt;
-      let steps = 0;
-      while (this.accumulator >= FIXED_DT && steps < 5) {
-        this.step();
-        this.accumulator -= FIXED_DT;
-        steps++;
-      }
-      if (steps === 5) this.accumulator = 0;
+      this.simulate(dt, 5);
       this.view.update(dt);
       this.updatePopups(dt);
+      this.updateProximity(dt);
     }
     this.view.render();
 
@@ -205,7 +276,7 @@ export class GameSession {
       this.lastCountdownTick = tick;
       audio.countdown(tick === 0);
       if (tick === 0) {
-        this.world.running = true;
+        if (!this.clientSync) this.world.running = true;
         audio.startMusic();
       }
     }
@@ -223,12 +294,22 @@ export class GameSession {
       player.input.throttle = throttle;
     }
 
+    let hostEvents: ReturnType<ClientSync["takeEvents"]> = [];
+    if (this.clientSync) {
+      this.clientSync.beforeStep(FIXED_DT);
+      hostEvents = this.clientSync.takeEvents();
+    }
+
     this.world.step(FIXED_DT);
+    if (hostEvents.length) this.world.events.push(...hostEvents);
+    this.hostSync?.afterStep(FIXED_DT, this.world.events);
+
     this.view.handleEvents(this.world.events);
     this.processEvents();
     this.world.events.length = 0;
 
-    if (this.world.finished && !this.ended) this.finish();
+    const endedOnline = this.clientSync?.endMessage != null;
+    if ((this.world.finished || endedOnline) && !this.ended) this.finish();
   }
 
   private processEvents() {
@@ -290,6 +371,23 @@ export class GameSession {
     }
   }
 
+  /** Voice chat gets quieter the further away another player's hole is. */
+  private updateProximity(dt: number) {
+    if (!this.net || this.playerId === null || !this.options.onProximity) return;
+    this.proximityTimer -= dt;
+    if (this.proximityTimer > 0) return;
+    this.proximityTimer = 0.2;
+    const me = this.world.holes[this.playerId];
+    const distances = new Map<string, number>();
+    this.net.start.roster.forEach((entry, i) => {
+      if (entry.peerId && i !== this.playerId) {
+        const other = this.world.holes[i];
+        distances.set(entry.peerId, Math.max(0, Math.hypot(other.x - me.x, other.z - me.z) - other.radius - me.radius));
+      }
+    });
+    this.options.onProximity(distances);
+  }
+
   private leaderboard(): LeaderboardRow[] {
     return this.world.standings().map(({ hole, rank }) => ({
       id: hole.id,
@@ -298,6 +396,7 @@ export class GameSession {
       score: Math.round(hole.score),
       skinId: hole.skinId,
       isPlayer: hole.isPlayer,
+      isBot: this.botIds.has(hole.id),
       alive: !hole.eliminated,
     }));
   }
@@ -308,6 +407,8 @@ export class GameSession {
     const size = sizeLevelForScore(player?.score ?? 0);
     return {
       mode: w.mode,
+      online: this.net !== null,
+      ping: this.net && !this.net.room.isHost ? this.net.room.rtt : 0,
       countdown: this.countdown,
       timeLeft: w.timeLeft,
       duration: w.duration,
@@ -328,9 +429,31 @@ export class GameSession {
     };
   }
 
+  /** Clients take final stats from the host so everyone sees the same results. */
+  private applyFinalStats(stats: HoleStats[]) {
+    stats.forEach((s, i) => {
+      const hole = this.world.holes[i];
+      if (!hole) return;
+      Object.assign(hole, {
+        score: s.score,
+        objectScore: s.objectScore,
+        kills: s.kills,
+        deaths: s.deaths,
+        objectsEaten: s.objectsEaten,
+        bestCombo: s.bestCombo,
+        sizeLevel: s.sizeLevel,
+        eliminated: s.eliminated,
+        eliminatedAt: s.eliminatedAt,
+        biggestBite: s.biggestBite,
+      });
+    });
+  }
+
   private finish() {
     this.ended = true;
     audio.stopMusic();
+    this.hostSync?.finish();
+    if (this.clientSync?.endMessage) this.applyFinalStats(this.clientSync.endMessage.stats);
     if (this.isDemo || this.playerId === null) return;
     const player = this.world.holes[this.playerId];
     const rank = this.world.rankOf(player);
@@ -359,7 +482,10 @@ export class GameSession {
     if (this.disposed) return;
     this.disposed = true;
     cancelAnimationFrame(this.frame);
+    window.clearInterval(this.backgroundTimer);
     audio.stopMusic();
+    this.hostSync?.dispose();
+    this.clientSync?.dispose();
     this.input?.dispose();
     this.view.dispose();
   }

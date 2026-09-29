@@ -31,18 +31,25 @@ export const TRAINING_INFO = { generations: trained.generations };
 /** Bots at lower difficulties also get slightly "unpolished" genomes. */
 const GENOME_JITTER: Record<Difficulty, number> = { easy: 0.16, normal: 0.1, hard: 0.06, insane: 0.03 };
 
-export function createBots(count: number, difficulty: Difficulty, rng: Rng, avoidSkin?: SkinId): HoleSetup[] {
+/** Names and skins for `count` bots. */
+export function createBotRoster(count: number, rng: Rng, avoidSkins: readonly SkinId[] = []) {
   const names = rng.shuffle([...BOT_NAMES]);
-  const skins = rng.shuffle(SKINS.map((s) => s.id).filter((id) => id !== avoidSkin));
-  return Array.from({ length: count }, (_, i) => {
-    const brain = TRAINED_BRAINS[i % TRAINED_BRAINS.length];
-    const jitter = GENOME_JITTER[difficulty];
-    const genome = jitter > 0 ? mutateGenome(brain.genome, rng, 0.6, jitter) : brain.genome;
-    return {
-      name: names[i % names.length],
-      skinId: skins[i % skins.length],
-      isPlayer: false,
-      controller: new BotBrain(genome, SKILLS[difficulty], rng),
-    };
-  });
+  const skins = rng.shuffle(SKINS.map((s) => s.id).filter((id) => !avoidSkins.includes(id)));
+  return Array.from({ length: count }, (_, i) => ({ name: names[i % names.length], skinId: skins[i % skins.length] }));
+}
+
+/** The brain for the `index`-th bot of a match, cycling through the trained genomes. */
+export function createBotBrain(index: number, difficulty: Difficulty, rng: Rng) {
+  const brain = TRAINED_BRAINS[index % TRAINED_BRAINS.length];
+  const jitter = GENOME_JITTER[difficulty];
+  const genome = jitter > 0 ? mutateGenome(brain.genome, rng, 0.6, jitter) : brain.genome;
+  return new BotBrain(genome, SKILLS[difficulty], rng);
+}
+
+export function createBots(count: number, difficulty: Difficulty, rng: Rng, avoidSkin?: SkinId): HoleSetup[] {
+  return createBotRoster(count, rng, avoidSkin ? [avoidSkin] : []).map((bot, i) => ({
+    ...bot,
+    isPlayer: false,
+    controller: createBotBrain(i, difficulty, rng),
+  }));
 }

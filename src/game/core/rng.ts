@@ -1,13 +1,22 @@
 /** Small, fast, seedable PRNG (mulberry32). Deterministic runs make AI training reproducible. */
 export class Rng {
-  private state: number;
+  private current: number;
 
   constructor(seed: number) {
-    this.state = seed >>> 0 || 0x9e3779b9;
+    this.current = seed >>> 0 || 0x9e3779b9;
+  }
+
+  /** Internal state, for serializing a generator over the network. */
+  get state(): number {
+    return this.current;
+  }
+
+  set state(value: number) {
+    this.current = value | 0;
   }
 
   next(): number {
-    let t = (this.state = (this.state + 0x6d2b79f5) | 0);
+    let t = (this.current = (this.current + 0x6d2b79f5) | 0);
     t = Math.imul(t ^ (t >>> 15), t | 1);
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;

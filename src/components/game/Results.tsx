@@ -3,6 +3,7 @@
 import { LEVELS } from "@/game/config/levels";
 import { SKIN_BY_ID } from "@/game/config/skins";
 import { useApp } from "@/store/app";
+import { useNet } from "@/store/net";
 import { Stars } from "../ui/Badges";
 import { Button } from "../ui/Button";
 import { levelMatch } from "../screens/levelMatch";
@@ -52,7 +53,10 @@ export default function Results() {
   const match = useApp((s) => s.match);
   const startMatch = useApp((s) => s.startMatch);
   const quit = useApp((s) => s.quitToMenu);
+  const room = useNet((s) => s.room);
+  const leaveRoom = useNet((s) => s.leave);
   if (!result || !reward || !match) return null;
+  const online = Boolean(match.net);
 
   const level = match.levelId !== null ? LEVELS.find((l) => l.id === match.levelId) : undefined;
   const nextLevel = level ? LEVELS.find((l) => l.id === level.id + 1) : undefined;
@@ -107,19 +111,36 @@ export default function Results() {
           {reward.newBest && <span className="rounded-full bg-lime px-2 py-0.5 text-sm text-ink">NEW BEST</span>}
         </div>
 
-        <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-          <Button variant="ghost" className="flex-1" onClick={quit}>
-            Menu
-          </Button>
-          <Button variant="secondary" className="flex-1" onClick={() => startMatch({ ...match, seed: level ? match.seed : Math.floor(Math.random() * 1e9) })}>
-            ↻ Retry
-          </Button>
-          {won && nextLevel && (
-            <Button className="flex-[1.4]" onClick={() => startMatch(levelMatch(nextLevel))}>
-              Next ▶
+        {online ? (
+          <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+            <Button variant="ghost" className="flex-1" onClick={leaveRoom}>
+              Leave room
             </Button>
-          )}
-        </div>
+            {room?.isHost ? (
+              <Button className="flex-[1.4]" onClick={() => room.returnToLobby()}>
+                Back to lobby
+              </Button>
+            ) : (
+              <div className="flex flex-[1.4] items-center justify-center rounded-2xl bg-black/30 px-4 py-2 font-bold text-white/70">
+                Waiting for the host…
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+            <Button variant="ghost" className="flex-1" onClick={quit}>
+              Menu
+            </Button>
+            <Button variant="secondary" className="flex-1" onClick={() => startMatch({ ...match, seed: level ? match.seed : Math.floor(Math.random() * 1e9) })}>
+              ↻ Retry
+            </Button>
+            {won && nextLevel && (
+              <Button className="flex-[1.4]" onClick={() => startMatch(levelMatch(nextLevel))}>
+                Next ▶
+              </Button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

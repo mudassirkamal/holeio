@@ -1,7 +1,7 @@
 import type { ObjectKindId } from "../config/objectCatalog";
 
 export type GameEvent =
-  | { type: "fallStart"; holeId: number; kindId: ObjectKindId; x: number; z: number }
+  | { type: "fallStart"; holeId: number; objectId: number; kindId: ObjectKindId; x: number; z: number }
   | {
       type: "objectEaten";
       holeId: number;

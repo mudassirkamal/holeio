@@ -8,6 +8,7 @@ import type { SkinId } from "@/game/config/skins";
 import { GameSession, createRenderer } from "@/game/engine/GameSession";
 import { computeReward } from "@/game/engine/rewards";
 import { useApp } from "@/store/app";
+import { useNet } from "@/store/net";
 import { useProfile } from "@/store/profile";
 import { sessionRef } from "./sessionRef";
 
@@ -71,6 +72,7 @@ export default function GameCanvas() {
         }, 900);
       },
       onDemoEnd: () => setDemoIndex((i) => i + 1),
+      onProximity: (distances) => useNet.getState().voice?.setProximity(distances),
     });
     sessionRef.current = session;
     session.start();
@@ -79,6 +81,7 @@ export default function GameCanvas() {
     window.addEventListener("resize", onResize);
     return () => {
       window.removeEventListener("resize", onResize);
+      useNet.getState().voice?.setProximity(null);
       session.dispose();
       if (sessionRef.current === session) sessionRef.current = null;
     };
@@ -95,7 +98,8 @@ export default function GameCanvas() {
   useEffect(() => {
     if (!playing) return;
     const onVisibility = () => {
-      if (document.hidden && !useApp.getState().result) useApp.getState().setPaused(true);
+      const { result, match } = useApp.getState();
+      if (document.hidden && !result && !match?.net) useApp.getState().setPaused(true);
     };
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);

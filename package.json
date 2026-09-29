@@ -11,11 +11,14 @@
     "typecheck": "tsc --noEmit",
     "train": "tsx scripts/train-bots.ts",
     "simulate": "tsx scripts/simulate.ts",
-    "balance": "tsx scripts/balance.ts"
+    "balance": "tsx scripts/balance.ts",
+    "lan": "next build && tsx scripts/lan-server.ts",
+    "lan:serve": "tsx scripts/lan-server.ts"
   },
   "dependencies": {
     "n8ao": "^2.0.1",
     "next": "^16.3.6",
+    "peerjs": "^1.5.5",
     "postprocessing": "^6.39.5",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
@@ -24,12 +27,16 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
+    "@types/express": "^5.0.6",
     "@types/node": "^26.6.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/three": "^0.186.0",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.3.6",
+    "express": "^5.2.1",
+    "peer": "^1.0.2",
+    "selfsigned": "^5.5.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3"

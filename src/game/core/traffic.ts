@@ -83,6 +83,9 @@ function makeCurve(p0x: number, p0z: number, p1x: number, p1z: number, p2x: numb
   return { p0x, p0z, p1x, p1z, p2x, p2z, length: Math.max(0.1, (chord + control) / 2) };
 }
 
+/** Compact, serializable car state (sent to clients to correct drift). */
+export type CarState = [nodeX: number, nodeZ: number, dir: number, nextDir: number, turning: number, t: number, speed: number, rng: number];
+
 export class CarMover {
   readonly type = "car";
   readonly cruiseSpeed: number;
@@ -103,6 +106,8 @@ export class CarMover {
     private readonly roads: RoadNetwork,
     spawn: CarSpawn,
     length: number,
+    /** Each car owns its random stream so its route is identical on every peer. */
+    private readonly rng: Rng,
   ) {
     this.nodeX = spawn.nodeX;
     this.nodeZ = spawn.nodeZ;
@@ -115,7 +120,7 @@ export class CarMover {
     this.halfLength = length / 2;
   }
 
-  private advanceSegment(rng: Rng) {
+  private advanceSegment() {
     if (this.turning) {
       this.turning = false;
       this.dir = this.nextDir;
@@ -123,13 +128,32 @@ export class CarMover {
     } else {
       this.nodeX += DIR_X[this.dir];
       this.nodeZ += DIR_Z[this.dir];
-      this.nextDir = this.roads.chooseTurn(this.nodeX, this.nodeZ, this.dir, rng);
+      this.nextDir = this.roads.chooseTurn(this.nodeX, this.nodeZ, this.dir, this.rng);
       this.curve = this.roads.turnCurve(this.nodeX, this.nodeZ, this.dir, this.nextDir);
       this.turning = true;
     }
   }
 
-  update(obj: CityObject, cars: readonly CityObject[], dt: number, rng: Rng) {
+  getState(): CarState {
+    return [this.nodeX, this.nodeZ, this.dir, this.nextDir, this.turning ? 1 : 0, Math.round(this.t * 1e4) / 1e4, Math.round(this.speed * 100) / 100, this.rng.state];
+  }
+
+  setState(obj: CityObject, [nodeX, nodeZ, dir, nextDir, turning, t, speed, rng]: CarState) {
+    this.nodeX = nodeX;
+    this.nodeZ = nodeZ;
+    this.dir = dir as Direction;
+    this.nextDir = nextDir as Direction;
+    this.turning = turning === 1;
+    this.curve = this.turning
+      ? this.roads.turnCurve(nodeX, nodeZ, this.dir, this.nextDir)
+      : this.roads.roadCurve(nodeX, nodeZ, this.dir);
+    this.t = t;
+    this.speed = speed;
+    this.rng.state = rng;
+    this.writePosition(obj);
+  }
+
+  update(obj: CityObject, cars: readonly CityObject[], dt: number) {
     // Brake for cars ahead travelling the same way.
     let targetSpeed = this.turning && this.nextDir !== this.dir ? this.cruiseSpeed * 0.6 : this.cruiseSpeed;
     if (this.stuckTime < 3) {
@@ -157,10 +181,13 @@ export class CarMover {
     this.t += (this.speed * dt) / this.curve.length;
     while (this.t >= 1) {
       const overflow = (this.t - 1) * this.curve.length;
-      this.advanceSegment(rng);
+      this.advanceSegment();
       this.t = overflow / this.curve.length;
     }
+    this.writePosition(obj);
+  }
 
+  private writePosition(obj: CityObject) {
     const { p0x, p0z, p1x, p1z, p2x, p2z } = this.curve;
     const t = this.t;
     const u = 1 - t;
@@ -193,6 +220,15 @@ export class WalkerMover {
     this.lateral = spawn.lateral;
     this.distance = spawn.distance;
     this.phase = spawn.distance * 3.1;
+  }
+
+  getState() {
+    return Math.round(this.distance * 100) / 100;
+  }
+
+  setState(obj: CityObject, distance: number) {
+    this.distance = distance;
+    this.update(obj, 0);
   }
 
   update(obj: CityObject, dt: number) {

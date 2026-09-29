@@ -21,6 +21,9 @@ Built with **Next.js 16**, **React 19**, **Three.js** and **TypeScript**.
 - **20 skins** — solid, gradient, stripes, polka, checkered, neon pulse, lava, toxic,
   ice, electric, matrix, rainbow, galaxy and gold — with particle trails, unlocked with
   coins, stars or level progress.
+- **Online multiplayer with voice chat** (see below): quick match with players
+  worldwide, private rooms with codes/invite links, and local-network play — with or
+  without internet.
 - **Strategic AI bots** (see below) at four difficulty levels.
 - **Graphics**: stencil-buffer holes you really see objects fall into, procedural
   low-poly models (40+ object types), procedural windows that light up at night, soft
@@ -45,7 +48,54 @@ npm run lint
 npm run typecheck
 npm run simulate -- metro classic 9 hard 6   # headless match for balancing
 npm run balance                              # campaign difficulty check
+npm run lan                                  # build + serve for offline LAN play (HTTPS :8443)
 npm run train -- 48 26                       # re-evolve the bot brains
+```
+
+## Multiplayer
+
+Open **Multiplayer** from the main menu:
+
+| Option | What it does |
+|---|---|
+| **Quick Match** | Joins an open public room, or hosts one if none is free. Public rooms start automatically 20 s after a second player joins; bots fill empty seats. |
+| **Private Room** | Creates a room with a 5-letter code and an invite link (`?room=CODE`) to share with friends anywhere. The host picks mode, city, map size, length, bot count and bot difficulty. |
+| **Join with a code** | Enter a friend's room code. |
+| **Local network** | Players on the same Wi-Fi use private rooms; game traffic flows directly between the devices. For play **without internet**, run `npm run lan` on one computer and open the address it prints on every device. |
+
+Up to 8 players per room (12 holes including bots).
+
+**Voice chat** — switch the mic on in the lobby or during a match. Choose open mic or
+push-to-talk (hold **V** or the mic button). Mute anyone from the lobby, see who is
+talking, and in matches voices fade with distance between holes (proximity chat).
+Browsers only allow the microphone on HTTPS pages, which the deployed site and
+`npm run lan` both provide.
+
+### How it works
+
+- Peer-to-peer WebRTC via [PeerJS](https://peerjs.com): there is no game server to run.
+  Players find each other through the free public PeerJS signaling server, or through
+  the built-in one when served by `npm run lan`.
+- The **host's browser is authoritative**: it runs the simulation, the bots and the
+  rules. Clients send their input (30 Hz) and receive hole snapshots (20 Hz) plus
+  gameplay events (swallows, kills, level-ups) over reliable/unordered data channels.
+- Clients **predict their own hole** so steering feels instant, interpolate other holes
+  100 ms in the past, and animate falls locally from host events. Traffic is
+  deterministic (each car has its own random stream), with a small correction every
+  2 s, so the whole city stays in sync for ~3 KB.
+- If a player disconnects mid-match, a bot takes over their hole. If the host leaves,
+  the room closes.
+
+### Optional: TURN relay
+
+Most connections work directly. Players behind very strict networks (some mobile
+carriers, corporate firewalls) may need a TURN relay. Set these at build time (e.g. in
+Vercel project settings) with credentials from any TURN provider:
+
+```
+NEXT_PUBLIC_TURN_URLS=turn:turn.example.com:3478,turns:turn.example.com:5349
+NEXT_PUBLIC_TURN_USERNAME=...
+NEXT_PUBLIC_TURN_CREDENTIAL=...
 ```
 
 ## How to play
@@ -95,12 +145,14 @@ src/
     render/             Three.js: scene view, hole stencil + skin shaders,
                         procedural models, city material, ground, sky, effects
     engine/             Game session loop tying simulation, rendering and UI
+    net/                Rooms/lobby (PeerJS), host & client sync, voice chat
     input/              Mouse / keyboard / touch input
     audio/              WebAudio synthesizer
 scripts/
   simulate.ts           Headless match runner for balancing
   balance.ts            Plays every campaign level with a player proxy
   train-bots.ts         Genetic-algorithm trainer for the bot brains
+  lan-server.ts         Local game + signaling server for offline LAN play
 ```
 
 The simulation core has no rendering dependencies, which is what makes headless

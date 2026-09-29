@@ -26,6 +26,11 @@ export interface MatchSetup {
   duration: number;
   blocksPerSide: number;
   holes: HoleSetup[];
+  /**
+   * Network client mode: the host is authoritative for holes, scores and swallowing.
+   * A replica only animates traffic, leaning and falls (see `replicateFall`).
+   */
+  replica?: boolean;
 }
 
 export interface Standing {
@@ -42,6 +47,7 @@ export class World {
   readonly mode: GameMode;
   readonly duration: number;
   readonly rng: Rng;
+  readonly replica: boolean;
 
   readonly objects: CityObject[] = [];
   readonly holes: Hole[] = [];
@@ -65,12 +71,13 @@ export class World {
     this.rng = new Rng(setup.seed * 7919 + 17);
     this.mode = setup.mode;
     this.duration = setup.duration;
+    this.replica = setup.replica ?? false;
     this.layout = generateCity(setup.themeId, setup.blocksPerSide, setup.seed);
     this.half = this.layout.half;
     this.grid = new SpatialGrid(this.half, CITY.cellSize);
     this.valueField = new ValueField(this.half, CITY.valueCellSize);
 
-    this.spawnObjects();
+    this.spawnObjects(setup.seed);
     this.totalValue = this.objects.reduce((sum, o) => sum + o.kind.value, 0);
 
     setup.holes.forEach((h, i) => {
@@ -89,13 +96,13 @@ export class World {
     return this.holes.find((h) => h.isPlayer) ?? null;
   }
 
-  private spawnObjects() {
+  private spawnObjects(seed: number) {
     const roads = createRoadNetwork(this.layout);
     this.layout.objects.forEach((placed, id) => {
       const kind = KIND[placed.kind];
       const obj = new CityObject(id, kind, placed.seed, placed.x, placed.z, placed.rotY);
       if (placed.spawn?.type === "car") {
-        obj.mover = new CarMover(roads, placed.spawn, kind.width);
+        obj.mover = new CarMover(roads, placed.spawn, kind.width, new Rng(seed * 131 + id * 7 + 1));
         this.cars.push(obj);
       } else if (placed.spawn?.type === "walker") {
         obj.mover = new WalkerMover(this.layout.walkRoutes[placed.spawn.route], placed.spawn);
@@ -105,7 +112,7 @@ export class World {
     });
 
     // Resolve initial mover positions before indexing.
-    for (const car of this.cars) (car.mover as CarMover).update(car, this.cars, 0, this.rng);
+    for (const car of this.cars) (car.mover as CarMover).update(car, this.cars, 0);
     for (const w of this.walkers) (w.mover as WalkerMover).update(w, 0);
 
     for (const obj of this.objects) {
@@ -145,6 +152,10 @@ export class World {
 
   step(dt: number) {
     if (this.finished) return;
+    if (this.replica) {
+      this.stepReplica(dt);
+      return;
+    }
 
     if (this.running) {
       this.time += dt;
@@ -158,7 +169,7 @@ export class World {
     this.updateMovers(dt);
 
     if (this.running) {
-      for (const hole of this.holes) if (hole.alive) this.interact(hole);
+      for (const hole of this.holes) if (hole.alive) this.interact(hole, true);
     }
 
     this.updateFalling(dt);
@@ -169,6 +180,14 @@ export class World {
       this.resolveHoleCollisions();
       this.checkEnd();
     }
+  }
+
+  /** Client-side step: holes are positioned from the network; only visuals simulate. */
+  private stepReplica(dt: number) {
+    this.updateMovers(dt);
+    for (const hole of this.holes) if (hole.alive) this.interact(hole, false);
+    this.updateFalling(dt);
+    this.updateLeaning(dt);
   }
 
   private markDirty(obj: CityObject) {
@@ -188,7 +207,8 @@ export class World {
     }
   }
 
-  private moveHole(hole: Hole, dt: number) {
+  /** Moves a hole from its input (also used by clients to predict their own hole). */
+  moveHole(hole: Hole, dt: number) {
     const { input } = hole;
     const len = Math.hypot(input.x, input.z);
     const throttle = len > 1e-3 ? clamp(input.throttle, 0, 1) : 0;
@@ -215,7 +235,7 @@ export class World {
   private updateMovers(dt: number) {
     for (const car of this.cars) {
       if (car.phase !== "standing") continue;
-      (car.mover as CarMover).update(car, this.cars, dt, this.rng);
+      (car.mover as CarMover).update(car, this.cars, dt);
       this.afterMove(car);
     }
     for (const walker of this.walkers) {
@@ -233,7 +253,7 @@ export class World {
   }
 
   /** Makes nearby objects lean toward the hole, and swallows the ones that fit. */
-  private interact(hole: Hole) {
+  private interact(hole: Hole, allowFalls: boolean) {
     const r = hole.radius;
     this.grid.forEachInRadius(hole.x, hole.z, r + MAX_FOOT_RADIUS * 0.6, (obj) => {
       const foot = obj.kind.footRadius;
@@ -244,8 +264,10 @@ export class World {
 
       const edible = obj.kind.requiredRadius < r;
       if (edible && d + foot * 0.35 < r) {
-        this.startFall(obj, hole);
-        return;
+        if (allowFalls) {
+          this.startFall(obj, hole);
+          return;
+        }
       }
 
       const inv = d > 1e-3 ? 1 / d : 0;
@@ -302,7 +324,7 @@ export class World {
       time: 0,
     };
     this.falling.push(obj);
-    this.events.push({ type: "fallStart", holeId: hole.id, kindId: obj.kind.id, x: obj.x, z: obj.z });
+    this.events.push({ type: "fallStart", holeId: hole.id, objectId: obj.id, kindId: obj.kind.id, x: obj.x, z: obj.z });
   }
 
   private updateFalling(dt: number) {
@@ -353,12 +375,12 @@ export class World {
       const reach = (h / 2) * Math.abs(Math.cos(f.angle)) + (obj.kind.footRadius * 0.8) * Math.abs(Math.sin(f.angle));
       if (!f.sunk && (f.y + reach < 0.2 || !hole.alive)) {
         f.sunk = true;
-        this.swallow(hole, obj);
+        if (!this.replica) this.swallow(hole, obj);
       }
 
       const gone = f.y + reach < -holeDepthForRadius(r) || f.time > 6 || !hole.alive;
       if (gone) {
-        if (!f.sunk) this.swallow(hole, obj);
+        if (!f.sunk && !this.replica) this.swallow(hole, obj);
         obj.phase = "gone";
         obj.visible = false;
         obj.fall = null;
@@ -488,6 +510,40 @@ export class World {
       this.finished = true;
       this.events.push({ type: "matchEnd" });
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Networking
+  // ---------------------------------------------------------------------------
+
+  /** Replica: starts the fall the host reported (no-op if already falling). */
+  replicateFall(objectId: number, holeId: number) {
+    const obj = this.objects[objectId];
+    const hole = this.holes[holeId];
+    if (obj && hole && obj.phase === "standing") this.startFall(obj, hole);
+  }
+
+  /** Traffic state for drift correction on clients. */
+  moverStates() {
+    return {
+      cars: this.cars.map((c) => (c.phase === "standing" ? (c.mover as CarMover).getState() : null)),
+      walkers: this.walkers.map((w) => (w.phase === "standing" ? (w.mover as WalkerMover).getState() : null)),
+    };
+  }
+
+  applyMoverStates(states: ReturnType<World["moverStates"]>) {
+    states.cars.forEach((state, i) => {
+      const car = this.cars[i];
+      if (!state || !car || car.phase !== "standing") return;
+      (car.mover as CarMover).setState(car, state);
+      this.afterMove(car);
+    });
+    states.walkers.forEach((state, i) => {
+      const walker = this.walkers[i];
+      if (state === null || !walker || walker.phase !== "standing") return;
+      (walker.mover as WalkerMover).setState(walker, state);
+      this.afterMove(walker);
+    });
   }
 
   // ---------------------------------------------------------------------------

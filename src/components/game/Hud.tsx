@@ -5,8 +5,10 @@ import { DEFAULT_SOLO_STARS, LEVELS, MODE_INFO } from "@/game/config/levels";
 import { SKIN_BY_ID } from "@/game/config/skins";
 import type { HudSnapshot } from "@/game/engine/types";
 import { useApp } from "@/store/app";
+import { useNet } from "@/store/net";
 import { useProfile } from "@/store/profile";
 import { sessionRef } from "./sessionRef";
+import VoiceControls from "./VoiceControls";
 
 const formatTime = (seconds: number) => {
   const s = Math.ceil(seconds);
@@ -27,7 +29,25 @@ function Timer({ hud }: { hud: HudSnapshot }) {
       <div className="rounded-full bg-black/40 px-3 py-0.5 text-xs font-black uppercase tracking-widest text-white/80">
         {MODE_INFO[hud.mode].icon} {MODE_INFO[hud.mode].name}
         {hud.mode === "battle" && ` · ${hud.holesAlive} alive`}
+        {hud.online && ` · 🌐${hud.ping > 0 ? ` ${hud.ping} ms` : ""}`}
       </div>
+    </div>
+  );
+}
+
+/** Online: mic button plus who's talking right now. */
+function VoiceHud() {
+  const speaking = useNet((s) => s.voiceState?.speaking ?? []);
+  const lobby = useNet((s) => s.lobby);
+  const names = speaking.map((id) => lobby?.players.find((p) => p.peerId === id)?.name).filter(Boolean);
+  return (
+    <div className="flex flex-col items-end gap-1">
+      {names.length > 0 && (
+        <div className="rounded-2xl bg-black/45 px-3 py-1 text-sm font-extrabold">
+          🔊 {names.join(", ")}
+        </div>
+      )}
+      <VoiceControls compact />
     </div>
   );
 }
@@ -87,7 +107,11 @@ function Leaderboard({ hud }: { hud: HudSnapshot }) {
         >
           <span className="w-5 text-right text-white/60">{row.rank}</span>
           <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: SKIN_BY_ID[row.skinId].colors[0] }} />
-          <span className="flex-1 truncate">{row.rank === 1 ? "👑 " : ""}{row.name}</span>
+          <span className="flex-1 truncate">
+            {row.rank === 1 ? "👑 " : ""}
+            {row.name}
+            {hud.online && row.isBot && <span className="ml-1 opacity-60">🤖</span>}
+          </span>
           <span className="tabular-nums text-white/80">{row.score.toLocaleString()}</span>
         </div>
       ))}
@@ -271,6 +295,11 @@ export default function Hud() {
       {minimap && (
         <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4">
           <Minimap hud={hud} />
+        </div>
+      )}
+      {hud.online && (
+        <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4">
+          <VoiceHud />
         </div>
       )}
       <Joystick />

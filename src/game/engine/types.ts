@@ -9,6 +9,7 @@ export interface LeaderboardRow {
   score: number;
   skinId: SkinId;
   isPlayer: boolean;
+  isBot: boolean;
   alive: boolean;
 }
 
@@ -23,6 +24,9 @@ export interface MinimapDot {
 
 export interface HudSnapshot {
   mode: GameMode;
+  online: boolean;
+  /** Round-trip time to the host (online clients), ms. */
+  ping: number;
   countdown: number;
   timeLeft: number;
   duration: number;

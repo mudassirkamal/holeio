@@ -85,6 +85,9 @@ export default function MainMenu() {
             <Button variant="green" onClick={() => go("quickplay")} icon="⚡">
               Quick Play
             </Button>
+            <Button variant="primary" className="col-span-2" onClick={() => go("multiplayer")} icon="🌐">
+              Multiplayer · Voice chat
+            </Button>
             <Button variant="gold" onClick={() => go("skins")} icon="🎨">
               Skins
             </Button>

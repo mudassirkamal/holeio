@@ -7,6 +7,7 @@ import { audio } from "@/game/audio/AudioEngine";
 import { LEVELS } from "@/game/config/levels";
 import { Rng } from "@/game/core/rng";
 import { useApp } from "@/store/app";
+import { useNet } from "@/store/net";
 import { useProfile } from "@/store/profile";
 import Hud from "./game/Hud";
 import { sessionRef } from "./game/sessionRef";
@@ -14,7 +15,9 @@ import PauseMenu from "./game/PauseMenu";
 import Results from "./game/Results";
 import { levelMatch } from "./screens/levelMatch";
 import LevelSelect from "./screens/LevelSelect";
+import Lobby from "./screens/Lobby";
 import MainMenu from "./screens/MainMenu";
+import Multiplayer from "./screens/Multiplayer";
 import QuickPlay from "./screens/QuickPlay";
 import Settings from "./screens/Settings";
 import SkinShop from "./screens/SkinShop";
@@ -35,10 +38,11 @@ export default function GameApp() {
   const hydrated = useIsClient();
 
   useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("room")) useApp.getState().go("multiplayer");
     if (process.env.NODE_ENV === "development") {
       // Dev-only handle for inspecting/steering a running game from the console.
       const brain = () => createBots(1, "hard", new Rng(Date.now()))[0].controller;
-      (window as unknown as { __debug: unknown }).__debug = { useApp, useProfile, sessionRef, levels: LEVELS, levelMatch, brain };
+      (window as unknown as { __debug: unknown }).__debug = { useApp, useProfile, useNet, sessionRef, levels: LEVELS, levelMatch, brain };
     }
     const unlock = () => audio.unlock();
     window.addEventListener("pointerdown", unlock, { once: true });
@@ -60,6 +64,8 @@ export default function GameApp() {
           {screen === "quickplay" && <QuickPlay />}
           {screen === "skins" && <SkinShop />}
           {screen === "settings" && <Settings />}
+          {screen === "multiplayer" && <Multiplayer />}
+          {screen === "lobby" && <Lobby />}
           {screen === "playing" && (
             <>
               <Hud />

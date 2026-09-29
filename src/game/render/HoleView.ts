@@ -125,6 +125,7 @@ export class HoleView {
 
   /** Starts the swallowed animation, shrinking toward the eater. */
   onEaten(eaterX: number, eaterZ: number) {
+    if (this.phase === "dying" || this.phase === "dead") return;
     this.phase = "dying";
     this.phaseTime = 0;
     this.deathX = this.group.position.x;
