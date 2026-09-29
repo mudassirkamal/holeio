@@ -19,7 +19,7 @@ function Card({ icon, title, children }: { icon: string; title: string; children
 }
 
 export default function Multiplayer() {
-  const { busy, status, error, signalMode, quickMatch, createRoom, joinRoom, clearError, detectSignaling } = useNet();
+  const { busy, status, error, signalMode, relay, quickMatch, createRoom, joinRoom, clearError, detectSignaling } = useNet();
   const [code, setCode] = useState("");
   const autoJoined = useRef(false);
 
@@ -102,6 +102,11 @@ export default function Multiplayer() {
         </Card>
       </div>
 
+      {relay && (
+        <p className="text-center text-sm font-black text-lime">
+          🛰️ Relay server on — players on strict networks (mobile data, office or school Wi-Fi) can connect too.
+        </p>
+      )}
       <p className="text-center text-xs font-bold text-white/55">
         Voice chat: allow microphone access in the lobby. Hold V (or the mic button) for push-to-talk. In matches, voices get quieter the
         farther away a player&apos;s hole is.

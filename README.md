@@ -43,7 +43,7 @@ npm run dev        # http://localhost:3000
 ```
 
 ```bash
-npm run build      # static export in ./out (deploy anywhere, e.g. Vercel)
+npm run build      # production build (deploy to Vercel, or `npm start`)
 npm run lint
 npm run typecheck
 npm run simulate -- metro classic 9 hard 6   # headless match for balancing
@@ -75,7 +75,8 @@ Browsers only allow the microphone on HTTPS pages, which the deployed site and
 
 - Peer-to-peer WebRTC via [PeerJS](https://peerjs.com): there is no game server to run.
   Players find each other through the free public PeerJS signaling server, or through
-  the built-in one when served by `npm run lan`.
+  the built-in one when served by `npm run lan`. A TURN relay (below) covers players
+  who can't connect directly.
 - The **host's browser is authoritative**: it runs the simulation, the bots and the
   rules. Clients send their input (30 Hz) and receive hole snapshots (20 Hz) plus
   gameplay events (swallows, kills, level-ups) over reliable/unordered data channels.
@@ -86,17 +87,29 @@ Browsers only allow the microphone on HTTPS pages, which the deployed site and
 - If a player disconnects mid-match, a bot takes over their hole. If the host leaves,
   the room closes.
 
-### Optional: TURN relay
+### TURN relay (so everyone can connect)
 
-Most connections work directly. Players behind very strict networks (some mobile
-carriers, corporate firewalls) may need a TURN relay. Set these at build time (e.g. in
-Vercel project settings) with credentials from any TURN provider:
+Most players connect directly. Players behind strict networks — some mobile carriers,
+office and school Wi-Fi, symmetric NATs — can't, and need a **TURN relay** that forwards
+their traffic. WebRTC encrypts everything end to end, so the relay only sees ciphertext.
 
-```
-NEXT_PUBLIC_TURN_URLS=turn:turn.example.com:3478,turns:turn.example.com:5349
-NEXT_PUBLIC_TURN_USERNAME=...
-NEXT_PUBLIC_TURN_CREDENTIAL=...
-```
+The game asks `GET /api/ice` (`src/app/api/ice/route.ts`) for relay servers. The provider
+secret stays on the server; browsers only get short-lived credentials (24 h). Set **one**
+of these as environment variables (on Vercel: *Project → Settings → Environment
+Variables*, then redeploy; locally: `.env.local`):
+
+| Provider | Variables |
+|---|---|
+| **Cloudflare Realtime TURN** (recommended — first 1,000 GB/month free, global) | `CLOUDFLARE_TURN_KEY_ID`, `CLOUDFLARE_TURN_API_TOKEN` |
+| **Metered** (free tier) | `METERED_TURN_DOMAIN` (e.g. `yourapp.metered.live`), `METERED_TURN_API_KEY` |
+| Any TURN server, e.g. your own coturn | `TURN_URLS` (comma-separated `turn:`/`turns:` URLs), `TURN_USERNAME`, `TURN_CREDENTIAL` |
+
+Cloudflare setup: in the Cloudflare dashboard open **Realtime → TURN Server → Create**,
+then copy the *Turn Token ID* into `CLOUDFLARE_TURN_KEY_ID` and the *API Token* into
+`CLOUDFLARE_TURN_API_TOKEN`.
+
+When a relay is configured, the Multiplayer screen shows **"Relay server on"**. Without
+one, the game still works for everyone who can connect directly.
 
 ## How to play
 
@@ -134,7 +147,8 @@ occasional distraction.
 
 ```
 src/
-  app/                  Next.js app router (layout, page, global styles)
+  app/                  Next.js app router (layout, page, global styles,
+                        api/ice: TURN relay credentials)
   components/           React UI: menus, level select, skin shop, HUD, results
   store/                Zustand stores (persisted profile, app/session state)
   game/

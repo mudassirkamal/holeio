@@ -37,9 +37,11 @@ function Timer({ hud }: { hud: HudSnapshot }) {
 
 /** Online: mic button plus who's talking right now. */
 function VoiceHud() {
-  const speaking = useNet((s) => s.voiceState?.speaking ?? []);
+  // Select the stable store value and derive from it: a selector returning a fresh
+  // `[]` would make React re-render forever while voice chat is still idle.
+  const voiceState = useNet((s) => s.voiceState);
   const lobby = useNet((s) => s.lobby);
-  const names = speaking.map((id) => lobby?.players.find((p) => p.peerId === id)?.name).filter(Boolean);
+  const names = (voiceState?.speaking ?? []).map((id) => lobby?.players.find((p) => p.peerId === id)?.name).filter(Boolean);
   return (
     <div className="flex flex-col items-end gap-1">
       {names.length > 0 && (

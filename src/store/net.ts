@@ -14,6 +14,8 @@ interface NetState {
   lobby: LobbyState | null;
   voiceState: VoiceState | null;
   signalMode: SignalMode | null;
+  /** A TURN relay is configured, so players on strict networks can connect too. */
+  relay: boolean;
   status: string | null;
   error: string | null;
   busy: boolean;
@@ -93,11 +95,12 @@ export const useNet = create<NetState>()((set, get) => {
     lobby: null,
     voiceState: null,
     signalMode: null,
+    relay: false,
     status: null,
     error: null,
     busy: false,
     detectSignaling: () => {
-      void signaling().then(({ mode }) => set({ signalMode: mode }));
+      void signaling().then(({ mode, relay }) => set({ signalMode: mode, relay }));
     },
     quickMatch: () => attempt("Looking for a public match…", () => Room.quickMatch(profile(), (status) => set({ status }))),
     createRoom: () => attempt("Creating your room…", () => Room.host(profile(), { isPublic: false })),

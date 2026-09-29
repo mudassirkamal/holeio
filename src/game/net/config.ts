@@ -11,7 +11,8 @@ export const NET = {
   /** Remote holes render this far in the past for smooth interpolation (s). */
   interpolationDelay: 0.1,
   publicSlots: 6,
-  joinTimeoutMs: 7000,
+  /** Long enough for ICE to fall back to the TURN relay on strict networks. */
+  joinTimeoutMs: 10000,
   publicAutoStartMs: 20000,
 } as const;
 
@@ -32,21 +33,21 @@ export const normalizeRoomCode = (input: string) =>
     .replace(/[^A-Z0-9]/g, "")
     .slice(0, 5);
 
-function iceServers(): RTCIceServer[] {
-  const servers: RTCIceServer[] = [
-    { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
-    { urls: "stun:stun.cloudflare.com:3478" },
-  ];
-  // Optional TURN relay for players behind strict NATs (set at build time).
-  const turn = process.env.NEXT_PUBLIC_TURN_URLS;
-  if (turn) {
-    servers.push({
-      urls: turn.split(",").map((u) => u.trim()),
-      username: process.env.NEXT_PUBLIC_TURN_USERNAME,
-      credential: process.env.NEXT_PUBLIC_TURN_CREDENTIAL,
-    });
+const STUN_SERVERS: RTCIceServer[] = [
+  { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
+  { urls: "stun:stun.cloudflare.com:3478" },
+];
+
+/** TURN relay servers with short-lived credentials from `/api/ice` (none if unset). */
+async function relayServers(): Promise<RTCIceServer[]> {
+  try {
+    const res = await fetch("/api/ice", { cache: "no-store", signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return [];
+    const { iceServers } = (await res.json()) as { iceServers?: RTCIceServer[] };
+    return Array.isArray(iceServers) ? iceServers : [];
+  } catch {
+    return [];
   }
-  return servers;
 }
 
 function parseSignalUrl(value: string): PeerJSOption {
@@ -62,29 +63,44 @@ function parseSignalUrl(value: string): PeerJSOption {
 
 export type SignalMode = "cloud" | "local";
 
-let resolved: Promise<{ mode: SignalMode; options: PeerJSOption }> | null = null;
+export interface Signaling {
+  mode: SignalMode;
+  /** Whether a TURN relay is available for players on strict networks. */
+  relay: boolean;
+  options: PeerJSOption;
+}
+
+async function signalServer(): Promise<{ mode: SignalMode; options: PeerJSOption }> {
+  const override = new URLSearchParams(window.location.search).get("signal");
+  if (override) return { mode: "local", options: parseSignalUrl(override) };
+  try {
+    const res = await fetch("/net-config.json", { cache: "no-store" });
+    const json = (await res.json()) as { signal?: SignalMode; path?: string };
+    if (json.signal === "local") return { mode: "local", options: parseSignalUrl(`${window.location.origin}${json.path ?? "/peerjs"}`) };
+  } catch {
+    // Fall through to the public server.
+  }
+  return { mode: "cloud", options: {} };
+}
+
+/** Relay credentials last 24 h; refresh them well before that in long-open tabs. */
+const REFRESH_AFTER_MS = 6 * 60 * 60 * 1000;
+let cached: { at: number; value: Promise<Signaling> } | null = null;
 
 /**
- * Where peers find each other. Online play uses the free public PeerJS server; when
- * the game is served by `npm run lan` it uses that machine's own signaling server, so
- * it works on a local network without internet. `?signal=<url>` overrides it (dev).
+ * Where peers find each other and how they connect. Online play uses the free public
+ * PeerJS server; when the game is served by `npm run lan` it uses that machine's own
+ * signaling server, so it works on a local network without internet. `?signal=<url>`
+ * overrides it (dev). ICE servers are STUN plus the TURN relay, when one is configured.
  */
-export function signaling() {
-  resolved ??= (async () => {
-    const config: RTCConfiguration = { iceServers: iceServers() };
-    const override = new URLSearchParams(window.location.search).get("signal");
-    if (override) return { mode: "local" as const, options: { ...parseSignalUrl(override), config } };
-    try {
-      const res = await fetch("/net-config.json", { cache: "no-store" });
-      const json = (await res.json()) as { signal?: SignalMode; path?: string };
-      if (json.signal === "local") {
-        const origin = `${window.location.origin}${json.path ?? "/peerjs"}`;
-        return { mode: "local" as const, options: { ...parseSignalUrl(origin), config } };
-      }
-    } catch {
-      // Fall through to the public server.
-    }
-    return { mode: "cloud" as const, options: { config } };
-  })();
-  return resolved;
+export function signaling(): Promise<Signaling> {
+  if (!cached || Date.now() - cached.at > REFRESH_AFTER_MS) {
+    const value = Promise.all([signalServer(), relayServers()]).then(([{ mode, options }, relay]) => ({
+      mode,
+      relay: relay.length > 0,
+      options: { ...options, config: { iceServers: [...STUN_SERVERS, ...relay] } },
+    }));
+    cached = { at: Date.now(), value };
+  }
+  return cached.value;
 }

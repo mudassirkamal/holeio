@@ -1,15 +1,16 @@
 /**
  * Offline / local-network play: `npm run lan`
  *
- * Serves the built game (./out) together with a PeerJS signaling server from this
- * computer, so devices on the same Wi-Fi can play together without internet. It runs
- * over HTTPS with a self-signed certificate because browsers only allow microphone
+ * Serves the built game (`next build`) together with a PeerJS signaling server from
+ * this computer, so devices on the same Wi-Fi can play together without internet. It
+ * runs over HTTPS with a self-signed certificate because browsers only allow microphone
  * access (voice chat) on secure pages — accept the certificate warning once per device.
  *
  *   npm run lan              HTTPS on :8443 (voice chat works)
  *   npm run lan -- --http    plain HTTP on :8080 (no voice chat, no warning)
  */
 import express from "express";
+import next from "next";
 import { existsSync } from "node:fs";
 import http from "node:http";
 import https from "node:https";
@@ -20,9 +21,9 @@ import { generate } from "selfsigned";
 
 const useHttp = process.argv.includes("--http");
 const port = Number(process.env.PORT ?? (useHttp ? 8080 : 8443));
-const outDir = resolve(__dirname, "../out");
+const projectDir = resolve(__dirname, "..");
 
-if (!existsSync(outDir)) {
+if (!existsSync(resolve(projectDir, ".next/BUILD_ID"))) {
   console.error("No build found. Run `npm run build` first (or use `npm run lan`, which builds for you).");
   process.exit(1);
 }
@@ -34,6 +35,10 @@ const lanAddresses = () =>
     .map((a) => a.address);
 
 async function main() {
+  const game = next({ dev: false, dir: projectDir });
+  await game.prepare();
+  const handle = game.getRequestHandler();
+
   const app = express();
   // Tells the game to use this machine's signaling server instead of the public one.
   app.get("/net-config.json", (_req, res) => res.json({ signal: "local", path: "/peerjs" }));
@@ -57,7 +62,7 @@ async function main() {
   const peerServer = ExpressPeerServer(server, { path: "/", allow_discovery: false });
   peerServer.on("connection", (client) => console.log(`  ↳ player connected (${client.getId().slice(0, 8)}…)`));
   app.use("/peerjs", peerServer);
-  app.use(express.static(outDir, { extensions: ["html"] }));
+  app.use((req, res) => handle(req, res));
 
   server.listen(port, () => {
     const scheme = useHttp ? "http" : "https";
