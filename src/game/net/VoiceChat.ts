@@ -13,6 +13,8 @@ export interface VoiceState {
   speaking: string[];
   muted: string[];
   connected: string[];
+  /** Team match: only teammates hear us (and we only hear them). */
+  teamOnly: boolean;
 }
 
 interface Link {
@@ -39,10 +41,11 @@ export class VoiceChat {
   private readonly links = new Map<string, Link>();
   private readonly muted = new Set<string>();
   private proximity: Map<string, number> | null = null;
+  private teammates: Set<string> | null = null;
   private pushHeld = false;
   private readonly meterTimer: number;
   private readonly meterBuffer = new Float32Array(512);
-  private state: VoiceState = { micOn: false, transmitting: false, micError: null, mode: "open", speaking: [], muted: [], connected: [] };
+  private state: VoiceState = { micOn: false, transmitting: false, micError: null, mode: "open", speaking: [], muted: [], connected: [], teamOnly: false };
 
   constructor(
     private readonly peer: Peer,
@@ -65,10 +68,26 @@ export class VoiceChat {
     return this.ctx;
   }
 
-  private outgoingStream(): MediaStream {
-    if (this.mic) return this.mic;
+  private silentStream() {
     this.silent ??= this.audioContext().createMediaStreamDestination().stream;
     return this.silent;
+  }
+
+  private outgoingStream(): MediaStream {
+    return this.mic ?? this.silentStream();
+  }
+
+  /**
+   * Picks what we send on one link: the microphone, or silence for players outside our
+   * team. Enemies receive no audio at all, so they can't overhear team plans.
+   */
+  private routeOutgoing(peerId: string) {
+    const link = this.links.get(peerId);
+    if (!link) return;
+    const allowed = !this.teammates || this.teammates.has(peerId);
+    const track = (allowed && this.mic ? this.mic : this.silentStream()).getAudioTracks()[0];
+    const sender = link.call.peerConnection?.getSenders().find((s) => s.track?.kind === "audio" || s.track === null);
+    if (sender && sender.track !== track) void sender.replaceTrack(track);
   }
 
   /** Opens/closes audio links so we're connected to exactly these peers. */
@@ -95,6 +114,7 @@ export class VoiceChat {
       link.analyser = ctx.createAnalyser();
       link.analyser.fftSize = 512;
       ctx.createMediaStreamSource(stream).connect(link.analyser);
+      this.routeOutgoing(call.peer);
       this.applyVolume(call.peer);
       this.publish();
     });
@@ -126,11 +146,7 @@ export class VoiceChat {
         return this.publish();
       }
       this.state.micError = null;
-      const track = this.mic.getAudioTracks()[0];
-      for (const { call } of this.links.values()) {
-        const sender = call.peerConnection?.getSenders().find((s) => s.track?.kind === "audio" || s.track === null);
-        void sender?.replaceTrack(track);
-      }
+      for (const id of this.links.keys()) this.routeOutgoing(id);
       const ctx = this.audioContext();
       this.micAnalyser = ctx.createAnalyser();
       this.micAnalyser.fftSize = 512;
@@ -172,11 +188,23 @@ export class VoiceChat {
     for (const id of this.links.keys()) this.applyVolume(id);
   }
 
+  /** Team matches: talk only with these peers (full volume, any distance); null = everyone. */
+  setTeammates(peerIds: ReadonlySet<string> | null) {
+    this.teammates = peerIds && new Set(peerIds);
+    this.state.teamOnly = peerIds !== null;
+    for (const id of this.links.keys()) {
+      this.routeOutgoing(id);
+      this.applyVolume(id);
+    }
+    this.publish();
+  }
+
   private applyVolume(peerId: string) {
     const link = this.links.get(peerId);
     if (!link) return;
     const distance = this.proximity?.get(peerId);
-    const gain = this.muted.has(peerId) ? 0 : distance === undefined ? 1 : proximityGain(distance);
+    const outsideTeam = this.teammates !== null && !this.teammates.has(peerId);
+    const gain = this.muted.has(peerId) || outsideTeam ? 0 : this.teammates || distance === undefined ? 1 : proximityGain(distance);
     link.audio.volume = gain;
   }
 

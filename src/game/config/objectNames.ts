@@ -1,0 +1,32 @@
+/** Display names for swallowed objects (results, highlight captions). */
+const NAMES: Partial<Record<string, string>> = {
+  skyscraper: "Skyscraper",
+  tower: "Tower",
+  office: "Office",
+  apartment: "Apartments",
+  gasStation: "Gas station",
+  waterTower: "Water tower",
+  shop: "Shop",
+  house: "House",
+  houseSmall: "Cottage",
+  bus: "Bus",
+  truck: "Truck",
+  billboard: "Billboard",
+  statue: "Statue",
+  fountain: "Fountain",
+  lifeguardTower: "Lifeguard tower",
+  busStop: "Bus stop",
+  phoneBooth: "Phone booth",
+  newsStand: "News stand",
+  trafficLight: "Traffic light",
+  lampPost: "Lamp post",
+  pineTree: "Pine tree",
+  palmTree: "Palm tree",
+  beachUmbrella: "Umbrella",
+  parkingMeter: "Parking meter",
+  trashCan: "Trash can",
+  flowerPot: "Flower pot",
+  deckChair: "Deck chair",
+};
+
+export const biteName = (id: string) => NAMES[id] ?? id.charAt(0).toUpperCase() + id.slice(1);

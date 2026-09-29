@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { DIFFICULTY_INFO, MODE_INFO, type Difficulty, type GameMode } from "@/game/config/levels";
+import { TEAMS, TEAM_SIZES } from "@/game/config/teams";
 import { THEMES, THEME_ORDER, type ThemeId } from "@/game/config/themes";
 import { useApp } from "@/store/app";
 import { Button } from "../ui/Button";
@@ -42,7 +43,10 @@ export default function QuickPlay() {
   const [theme, setTheme] = useState<ThemeId>("metro");
   const [difficulty, setDifficulty] = useState<Difficulty>("normal");
   const [bots, setBots] = useState(9);
+  const [teamSize, setTeamSize] = useState(4);
   const [blocks, setBlocks] = useState(5);
+  // Teams: you plus (size - 1) bot teammates against `size` bots.
+  const botCount = mode === "solo" ? 0 : mode === "teams" ? teamSize * 2 - 1 : bots;
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-y-auto p-4 scrollbar-thin sm:p-8 short:gap-3 short:p-3">
@@ -92,18 +96,36 @@ export default function QuickPlay() {
                   ))}
                 </div>
               </div>
-              <div>
-                <h2 className="mb-3 font-display text-2xl">Opponents: {bots}</h2>
-                <input
-                  type="range"
-                  min={3}
-                  max={11}
-                  value={bots}
-                  onChange={(e) => setBots(Number(e.target.value))}
-                  className="w-full accent-[#ff5c95]"
-                  aria-label="Number of bots"
-                />
-              </div>
+              {mode === "teams" ? (
+                <div>
+                  <h2 className="mb-3 font-display text-2xl">Team size</h2>
+                  <div className="grid grid-cols-5 gap-2">
+                    {TEAM_SIZES.map((size) => (
+                      <Choice key={size} value={size} current={teamSize} onSelect={setTeamSize}>
+                        <div className="text-center">
+                          {size}v{size}
+                        </div>
+                      </Choice>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-sm font-bold text-white/65">
+                    You play for <span style={{ color: TEAMS[1].color }}>{TEAMS[1].name}</span> with {teamSize - 1} bot teammate{teamSize === 2 ? "" : "s"}.
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <h2 className="mb-3 font-display text-2xl">Opponents: {bots}</h2>
+                  <input
+                    type="range"
+                    min={3}
+                    max={11}
+                    value={bots}
+                    onChange={(e) => setBots(Number(e.target.value))}
+                    className="w-full accent-[#ff5c95]"
+                    aria-label="Number of bots"
+                  />
+                </div>
+              )}
             </div>
           </section>
         )}
@@ -118,7 +140,7 @@ export default function QuickPlay() {
               duration: 120,
               blocksPerSide: blocks,
               seed: Math.floor(Math.random() * 1e9),
-              bots: mode === "solo" ? 0 : bots,
+              bots: botCount,
               difficulty,
               levelId: null,
             })

@@ -99,6 +99,12 @@ export class BotBrain implements HoleController {
       if (other === hole || !other.alive) continue;
       const d = Math.hypot(other.x - hole.x, other.z - hole.z);
       if (d > vision) continue;
+      // Teammates are harmless and off the menu, but still compete for the same food,
+      // which spreads a team across the map.
+      if (world.areTeammates(hole, other)) {
+        rivals.push(other);
+        continue;
+      }
       if (other.radius > r * HOLE.eatRatio * 0.97) {
         const obvious = d < other.radius + r + 6;
         if (obvious || this.rng.chance(this.skill.threatReaction)) threats.push(other);
@@ -150,7 +156,9 @@ export class BotBrain implements HoleController {
       g.huntDrive *= 1.25;
     }
     if (world.mode !== "solo" && world.timeLeft < 25) {
-      if (world.rankOf(hole) === 1) {
+      const scores = world.mode === "teams" ? world.teamScores() : null;
+      const leading = scores ? scores[hole.team] > scores[1 - hole.team] : world.rankOf(hole) === 1;
+      if (leading) {
         g.fleeRadius *= 1.35;
         g.huntDrive *= 0.8;
       } else {
@@ -204,6 +212,12 @@ export class BotBrain implements HoleController {
     return true;
   }
 
+  private threatensTeammate(world: World, hole: Hole, enemy: Hole) {
+    return world.holes.some(
+      (t) => t !== hole && t.alive && world.areTeammates(hole, t) && enemy.canEat(t) && Math.hypot(enemy.x - t.x, enemy.z - t.z) < enemy.radius * 3 + 15,
+    );
+  }
+
   private bestPrey(world: World, hole: Hole, g: Genome, prey: Hole[], threats: Hole[]) {
     let best: { prey: Hole; utility: number; time: number } | null = null;
     for (const p of prey) {
@@ -221,6 +235,8 @@ export class BotBrain implements HoleController {
       if (p.id === this.preyId) utility *= 1.3;
       // Revenge: hunt down whoever swallowed us last.
       if (p.id === hole.eatenBy) utility *= 1.4;
+      // Bodyguard: an enemy closing in on a smaller teammate is a priority target.
+      if (world.mode === "teams" && this.threatensTeammate(world, hole, p)) utility *= 1.6;
       if (!best || utility > best.utility) best = { prey: p, utility, time };
     }
     return best;

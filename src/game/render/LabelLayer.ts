@@ -1,12 +1,14 @@
 import { Vector3, type PerspectiveCamera } from "three";
 import { SKIN_BY_ID } from "../config/skins";
+import { TEAMS } from "../config/teams";
 import type { Hole } from "../core/entities";
 
 interface Label {
   root: HTMLDivElement;
   name: HTMLSpanElement;
   crown: HTMLSpanElement;
-  skin: string;
+  /** Skin (or team) the label color was last set from. */
+  colorKey: string;
 }
 
 const projected = new Vector3();
@@ -33,7 +35,7 @@ export class LabelLayer {
     root.append(crown, name);
     if (hole.isPlayer) root.classList.add("is-player");
     this.root.appendChild(root);
-    const label = { root, name, crown, skin: "" };
+    const label = { root, name, crown, colorKey: "" };
     this.labels.set(hole.id, label);
     return label;
   }
@@ -45,9 +47,11 @@ export class LabelLayer {
         label.root.style.opacity = "0";
         continue;
       }
-      if (label.skin !== hole.skinId) {
-        label.skin = hole.skinId;
-        label.root.style.setProperty("--label-color", SKIN_BY_ID[hole.skinId].colors[0]);
+      // Team matches color labels by team so friend and foe are obvious at a glance.
+      const colorKey = hole.team >= 0 ? `team${hole.team}` : hole.skinId;
+      if (label.colorKey !== colorKey) {
+        label.colorKey = colorKey;
+        label.root.style.setProperty("--label-color", hole.team >= 0 ? TEAMS[hole.team].color : SKIN_BY_ID[hole.skinId].colors[0]);
       }
       projected.set(hole.x, 0, hole.z - hole.radius * 1.08).project(camera);
       if (projected.z > 1 || projected.x < -1.2 || projected.x > 1.2 || projected.y < -1.2 || projected.y > 1.2) {

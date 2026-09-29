@@ -10,6 +10,8 @@ const BASS_LINE = [0, 0, 7, 0, 5, 5, 3, 5];
 class AudioEngine {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+  /** Final mix (after the compressor): what reaches the speakers. */
+  private output: AudioNode | null = null;
   private sfxGain: GainNode | null = null;
   private musicGain: GainNode | null = null;
   private noise: AudioBuffer | null = null;
@@ -33,6 +35,7 @@ class AudioEngine {
       const compressor = this.ctx.createDynamicsCompressor();
       compressor.threshold.value = -14;
       this.master.connect(compressor).connect(this.ctx.destination);
+      this.output = compressor;
       this.sfxGain = this.ctx.createGain();
       this.sfxGain.connect(this.master);
       this.musicGain = this.ctx.createGain();
@@ -43,6 +46,39 @@ class AudioEngine {
       for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
     }
     this.resume();
+  }
+
+  /**
+   * Streams the final mix into `onBlock` (for highlight clips), each block stamped with
+   * the performance time its first sample played. Returns a stop function, or null
+   * before audio has been unlocked.
+   */
+  capture(onBlock: (left: Float32Array, right: Float32Array, startMs: number) => void): (() => void) | null {
+    const { ctx, output } = this;
+    if (!ctx || !output) return null;
+    // ScriptProcessor is deprecated but, unlike AudioWorklet, needs no separate module file.
+    const node = ctx.createScriptProcessor(4096, 2, 2);
+    node.onaudioprocess = (e) => {
+      const blockMs = (node.bufferSize / ctx.sampleRate) * 1000;
+      const stamp = ctx.getOutputTimestamp?.();
+      const startMs =
+        stamp?.performanceTime !== undefined && stamp.contextTime !== undefined
+          ? stamp.performanceTime + (e.playbackTime - stamp.contextTime) * 1000 - blockMs
+          : performance.now() - blockMs;
+      onBlock(e.inputBuffer.getChannelData(0).slice(), e.inputBuffer.getChannelData(1).slice(), startMs);
+      for (let c = 0; c < e.outputBuffer.numberOfChannels; c++) e.outputBuffer.getChannelData(c).fill(0);
+    };
+    output.connect(node);
+    node.connect(ctx.destination);
+    return () => {
+      node.onaudioprocess = null;
+      output.disconnect(node);
+      node.disconnect();
+    };
+  }
+
+  get sampleRate() {
+    return this.ctx?.sampleRate ?? 48000;
   }
 
   /** Restarts an existing context; iOS parks it as "interrupted" after a call or app switch. */

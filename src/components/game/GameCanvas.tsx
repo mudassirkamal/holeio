@@ -7,6 +7,7 @@ import { haptics } from "@/game/input/haptics";
 import { THEME_ORDER } from "@/game/config/themes";
 import type { SkinId } from "@/game/config/skins";
 import { GameSession, createRenderer } from "@/game/engine/GameSession";
+import { teammatePeerIds } from "@/game/net/protocol";
 import { computeReward } from "@/game/engine/rewards";
 import { useApp } from "@/store/app";
 import { useNet } from "@/store/net";
@@ -74,9 +75,16 @@ export default function GameCanvas() {
       },
       onDemoEnd: () => setDemoIndex((i) => i + 1),
       onProximity: (distances) => useNet.getState().voice?.setProximity(distances),
+      recordClips: profile.settings.clips,
+      onClip: (clip) => useApp.getState().addClip(clip),
     });
     sessionRef.current = session;
     session.start();
+
+    // Team matches switch voice chat to team-only; the lobby hears everyone again.
+    const net = playing ? app.match?.net : undefined;
+    const voice = useNet.getState().voice;
+    if (net?.start.mode === "teams") voice?.setTeammates(teammatePeerIds(net.start, net.room.myPeerId));
 
     // Observing the canvas catches phone rotations after layout has settled, which a
     // window resize event on iOS does not always do.
@@ -85,6 +93,7 @@ export default function GameCanvas() {
     return () => {
       observer.disconnect();
       useNet.getState().voice?.setProximity(null);
+      useNet.getState().voice?.setTeammates(null);
       session.dispose();
       if (sessionRef.current === session) sessionRef.current = null;
     };

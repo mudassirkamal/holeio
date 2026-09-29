@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ClipRecorder } from "@/game/clips/ClipRecorder";
 import { haptics } from "@/game/input/haptics";
 import type { QualityLevel } from "@/game/render/quality";
 import { useProfile } from "@/store/profile";
@@ -59,6 +60,7 @@ export default function Settings() {
           <Toggle label="Music" value={settings.music} onChange={(music) => update({ music })} />
           <Toggle label="Minimap" value={settings.minimap} onChange={(minimap) => update({ minimap })} />
           {haptics.supported && <Toggle label="Vibration" value={settings.vibration} onChange={(vibration) => update({ vibration })} />}
+          {ClipRecorder.supported && <Toggle label="Record highlight clips" value={settings.clips} onChange={(clips) => update({ clips })} />}
           <div className="mt-auto pt-4">
             {confirmReset ? (
               <div className="flex gap-2">

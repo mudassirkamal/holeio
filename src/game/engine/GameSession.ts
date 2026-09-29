@@ -1,8 +1,13 @@
 import { Vector3, WebGLRenderer } from "three";
 import { audio } from "../audio/AudioEngine";
+import { ClipRecorder } from "../clips/ClipRecorder";
+import { HighlightTracker, type Highlight } from "../clips/highlights";
+import { paintOverlay } from "../clips/overlay";
+import { biteName } from "../config/objectNames";
 import { createBotBrain, createBots } from "../ai/roster";
 import { sizeLevelForScore } from "../config/constants";
 import { DEFAULT_SOLO_STARS, type Difficulty, type GameMode } from "../config/levels";
+import { winningTeam } from "../config/teams";
 import type { SkinId } from "../config/skins";
 import type { ThemeId } from "../config/themes";
 import { Rng } from "../core/rng";
@@ -15,7 +20,7 @@ import type { HoleStats, MatchStart } from "../net/protocol";
 import type { Room } from "../net/Room";
 import { isMobileDevice, qualitySettings, type QualityLevel, type QualitySettings } from "../render/quality";
 import { SceneView } from "../render/SceneView";
-import type { FeedItem, HudSnapshot, LeaderboardRow, MatchResult } from "./types";
+import type { FeedItem, HudSnapshot, LeaderboardRow, MatchResult, SessionClip, TeamStatus } from "./types";
 
 export interface NetMatch {
   room: Room;
@@ -50,6 +55,9 @@ export interface SessionOptions {
   onDemoEnd?: () => void;
   /** Online: distance in meters from the player's hole to each remote player's hole. */
   onProximity?: (distances: Map<string, number>) => void;
+  /** Keep a rolling recording so highlights can be saved as video clips. */
+  recordClips?: boolean;
+  onClip?: (clip: SessionClip) => void;
 }
 
 const FIXED_DT = 1 / 60;
@@ -89,9 +97,19 @@ function netHoles(net: NetMatch, rng: Rng) {
         controller = remote;
       }
     }
-    return { name: entry.name, skinId: entry.skinId, isPlayer: isMe, controller };
+    return { name: entry.name, skinId: entry.skinId, isPlayer: isMe, controller, team: entry.team };
   });
   return { holes, remotes };
+}
+
+/**
+ * Quick-play teams: the player is on Blue with the first half of the bots; the rest play
+ * Red. Menus pass an odd bot count, so both sides are the same size.
+ */
+function splitTeams(bots: HoleSetup[], player: HoleSetup) {
+  const teammates = Math.floor(bots.length / 2);
+  bots.forEach((bot, i) => (bot.team = i < teammates ? 1 : 0));
+  player.team = 1;
 }
 
 /**
@@ -133,6 +151,8 @@ export class GameSession {
   private perfMin = Infinity;
   private perfMax = 0;
   private perfSmoothFor = 0;
+  private readonly recorder: ClipRecorder | null = null;
+  private readonly highlights = new HighlightTracker();
 
   constructor(
     renderer: WebGLRenderer,
@@ -151,7 +171,9 @@ export class GameSession {
       this.botIds = new Set(this.net.start.roster.flatMap((e, i) => (e.peerId === null ? [i] : [])));
     } else if (match) {
       holes = match.mode === "solo" ? [] : createBots(match.bots, match.difficulty, rng, options.playerSkin);
-      holes.splice(rng.int(0, holes.length), 0, { name: options.playerName, skinId: options.playerSkin, isPlayer: true, controller: null });
+      const player: HoleSetup = { name: options.playerName, skinId: options.playerSkin, isPlayer: true, controller: null };
+      if (match.mode === "teams") splitTeams(holes, player);
+      holes.splice(rng.int(0, holes.length), 0, player);
       this.botIds = new Set(holes.flatMap((h, i) => (h.isPlayer ? [] : [i])));
     } else {
       holes = createBots(9, "hard", rng, options.playerSkin);
@@ -184,6 +206,9 @@ export class GameSession {
       focusId: this.playerId,
     });
     this.input = this.isDemo ? null : new HumanInput(options.overlay);
+    if (!this.isDemo && options.recordClips && ClipRecorder.supported) {
+      this.recorder = new ClipRecorder(options.canvas, isMobileDevice() ? 854 : 1280, audio);
+    }
 
     if (this.isDemo) {
       this.world.running = true;
@@ -331,12 +356,48 @@ export class GameSession {
       this.updateProximity(dt);
     }
     this.view.render();
+    this.recordFrame();
 
     this.hudTimer -= dt;
     if (this.hudTimer <= 0 && !this.isDemo) {
       this.hudTimer = 0.1;
       this.options.onHud?.(this.snapshot());
     }
+  }
+
+  /** Feeds the clip recorder (right after rendering) and cuts highlights when they're ready. */
+  private recordFrame() {
+    if (!this.recorder || this.ended || this.paused || this.countdown > 0) return;
+    const now = performance.now();
+    this.recorder.capture(now, (ctx, width, height) =>
+      paintOverlay(ctx, width, height, {
+        holes: this.world.holes,
+        camera: this.view.rig.camera,
+        playerId: this.playerId,
+        caption: this.highlights.liveCaption(now),
+        watermark: window.location.host,
+      }),
+    );
+    const due = this.highlights.takeDue(now);
+    if (due) void this.cutClip(due, true);
+  }
+
+  private async cutClip(highlight: Highlight, auto: boolean) {
+    const file = await this.recorder?.exportClip(highlight.fromMs, highlight.toMs).catch(() => null);
+    if (!file && auto) this.highlights.forgetBest();
+    if (!file || this.disposed) return false;
+    this.options.onClip?.({ ...file, caption: highlight.caption, auto });
+    return true;
+  }
+
+  get canRecordClips() {
+    return this.recorder !== null;
+  }
+
+  /** Saves the last few seconds as a clip (the HUD's record button). */
+  saveClip() {
+    const now = performance.now();
+    return this.cutClip({ fromMs: now - 9000, toMs: now, caption: this.highlights.liveCaption(now) ?? "Watch this!" }, false);
   }
 
   private updateCountdown(dt: number) {
@@ -389,6 +450,9 @@ export class GameSession {
         case "objectEaten":
           if (e.holeId === this.playerId) {
             audio.swallow(e.value);
+            const big = e.value >= 110;
+            this.highlights.add(performance.now(), e.value * (big ? 1.2 : 0.3), big ? `Swallowed a ${biteName(e.kindId)}!` : null);
+            if (e.combo >= 20 && e.combo % 10 === 0) this.highlights.add(performance.now(), e.combo * 10, `Combo ×${e.combo}!`);
             if (e.value >= 40) haptics.pulse(e.value >= 400 ? [35, 30, 35] : e.value >= 110 ? 24 : 12);
             this.popupPoints += e.value;
             if (e.combo > 0 && e.combo % 10 === 0) {
@@ -400,6 +464,7 @@ export class GameSession {
         case "levelUp":
           if (e.holeId === this.playerId) {
             audio.levelUp();
+            if (e.level >= 6) this.highlights.add(performance.now(), e.level * 50, `Size ${e.level}!`);
             haptics.pulse([18, 40, 18]);
             this.options.onFeed?.({ kind: "levelUp", level: e.level });
           }
@@ -411,13 +476,18 @@ export class GameSession {
           if (!this.isDemo) audio.holeEaten(involvesPlayer);
           if (eater.id === this.playerId) haptics.pulse([30, 40, 60], 0);
           else if (victim.id === this.playerId) haptics.pulse(220, 0);
-          if (eater.id === this.playerId) this.view.popup(`+${Math.round(e.gain)} ATE ${victim.name.toUpperCase()}!`, "is-kill");
+          if (eater.id === this.playerId) {
+            this.view.popup(`+${Math.round(e.gain)} ATE ${victim.name.toUpperCase()}!`, "is-kill");
+            this.highlights.add(performance.now(), 900 + e.gain, `Ate ${victim.name}!`);
+          }
           this.options.onFeed?.({
             kind: "kill",
             eater: eater.name,
             eaterSkin: eater.skinId,
             victim: victim.name,
             victimSkin: victim.skinId,
+            eaterTeam: eater.team,
+            victimTeam: victim.team,
             byPlayer: eater.id === this.playerId,
             ofPlayer: victim.id === this.playerId,
           });
@@ -472,7 +542,14 @@ export class GameSession {
       isPlayer: hole.isPlayer,
       isBot: this.botIds.has(hole.id),
       alive: !hole.eliminated,
+      team: hole.team,
     }));
+  }
+
+  private teamStatus(): TeamStatus | null {
+    const player = this.playerId !== null ? this.world.holes[this.playerId] : null;
+    if (this.world.mode !== "teams" || !player) return null;
+    return { player: player.team, scores: this.world.teamScores().map(Math.round) };
   }
 
   private snapshot(): HudSnapshot {
@@ -498,7 +575,8 @@ export class GameSession {
       eatenBy: player && player.eatenBy >= 0 ? w.holes[player.eatenBy].name : null,
       combo: player?.combo ?? 0,
       leaderboard: this.leaderboard(),
-      minimap: w.holes.map((h) => ({ x: h.x / w.half, z: h.z / w.half, r: h.radius / w.half, skinId: h.skinId, isPlayer: h.isPlayer, alive: h.alive })),
+      minimap: w.holes.map((h) => ({ x: h.x / w.half, z: h.z / w.half, r: h.radius / w.half, skinId: h.skinId, isPlayer: h.isPlayer, alive: h.alive, team: h.team })),
+      teams: this.teamStatus(),
       paused: this.paused,
     };
   }
@@ -525,12 +603,15 @@ export class GameSession {
 
   private finish() {
     this.ended = true;
+    const due = this.highlights.takeDue(performance.now(), true);
+    if (due) void this.cutClip(due, true);
     audio.stopMusic();
     this.hostSync?.finish();
     if (this.clientSync?.endMessage) this.applyFinalStats(this.clientSync.endMessage.stats);
     if (this.isDemo || this.playerId === null) return;
     const player = this.world.holes[this.playerId];
     const rank = this.world.rankOf(player);
+    const teams = this.teamStatus();
     const result: MatchResult = {
       mode: this.world.mode,
       rank,
@@ -545,8 +626,12 @@ export class GameSession {
       eliminated: player.eliminated,
       leaderboard: this.leaderboard(),
       biggestBite: player.biggestBite,
+      teams: teams && { ...teams, winner: winningTeam(teams.scores) },
     };
-    if (rank === 1 || (this.world.mode === "solo" && result.percent >= DEFAULT_SOLO_STARS[0])) {
+    const won = result.teams
+      ? result.teams.winner === result.teams.player
+      : rank === 1 || (this.world.mode === "solo" && result.percent >= DEFAULT_SOLO_STARS[0]);
+    if (won) {
       audio.win();
       haptics.pulse([40, 60, 40, 60, 90], 0);
     } else {
@@ -565,6 +650,7 @@ export class GameSession {
     this.hostSync?.dispose();
     this.clientSync?.dispose();
     this.input?.dispose();
+    this.recorder?.dispose();
     this.view.dispose();
   }
 }

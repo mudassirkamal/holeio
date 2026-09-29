@@ -135,6 +135,8 @@ export class Hole {
   private biggestBiteValue = 0;
   /** Id of the hole that last swallowed this one. */
   eatenBy = -1;
+  /** Team index in team mode, -1 otherwise. */
+  team = -1;
 
   readonly input: HoleInput = { x: 0, z: 0, throttle: 0 };
 

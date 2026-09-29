@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useSyncExternalStore } from "react";
 import { createBots } from "@/game/ai/roster";
 import { audio } from "@/game/audio/AudioEngine";
+import { ClipRecorder } from "@/game/clips/ClipRecorder";
 import { LEVELS } from "@/game/config/levels";
 import { Rng } from "@/game/core/rng";
 import { useApp } from "@/store/app";
@@ -42,7 +43,7 @@ export default function GameApp() {
     if (process.env.NODE_ENV === "development") {
       // Dev-only handle for inspecting/steering a running game from the console.
       const brain = () => createBots(1, "hard", new Rng(Date.now()))[0].controller;
-      (window as unknown as { __debug: unknown }).__debug = { useApp, useProfile, useNet, sessionRef, levels: LEVELS, levelMatch, brain };
+      (window as unknown as { __debug: unknown }).__debug = { useApp, useProfile, useNet, sessionRef, levels: LEVELS, levelMatch, brain, ClipRecorder };
     }
     // Not `once`: phones suspend audio when the app goes to the background, and it can
     // only be resumed from the next touch.

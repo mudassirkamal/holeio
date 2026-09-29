@@ -15,8 +15,16 @@ Built with **Next.js 16**, **React 19**, **Three.js** and **TypeScript**.
   a white picket fence in the Suburbs, a glowing laser fence in Neon Nights, a snowy
   log fence in Frost Town and a rope boardwalk fence in Palm Beach — each with corner
   towers and flag or lamp posts. Holes stay inside the walls.
-- **Three modes**: Classic (biggest hole when time runs out, respawn when eaten),
-  Battle Royale (no respawns, last hole standing) and Solo (swallow a % of the city).
+- **Four modes**: Classic (biggest hole when time runs out, respawn when eaten),
+  Battle Royale (no respawns, last hole standing), Solo (swallow a % of the city) and
+  **Teams** — Red vs Blue from 2v2 to 6v6, where teammates can't eat each other and the
+  team with the biggest combined size wins. Bots play as teammates too and defend
+  smaller teammates from enemies.
+- **Shareable highlight clips**: the game keeps the last seconds of play encoded in
+  memory and automatically cuts your best moment (kills, skyscrapers, big combos) into a
+  short video with sound, name tags, a caption and a watermark. Tap 🎬 to clip any
+  moment yourself; share straight to WhatsApp, Instagram and co. from the results screen
+  (or save the file).
 - **20 campaign levels** with 1–3 stars each, plus a fully configurable Quick Play.
 - **20 skins** — solid, gradient, stripes, polka, checkered, neon pulse, lava, toxic,
   ice, electric, matrix, rainbow, galaxy and gold — with particle trails, unlocked with
@@ -63,11 +71,15 @@ Open **Multiplayer** from the main menu:
 | Option | What it does |
 |---|---|
 | **Quick Match** | Joins an open public room, or hosts one if none is free. Public rooms start automatically 20 s after a second player joins; bots fill empty seats. |
-| **Private Room** | Creates a room with a 5-letter code and an invite link (`?room=CODE`) to share with friends anywhere. The host picks mode, city, map size, length, bot count and bot difficulty. |
+| **Private Room** | Creates a room with a 5-letter code and an invite link (`?room=CODE`) to share with friends anywhere. The host picks mode (Classic, Battle Royale or Teams), city, map size, length, bot count/team size and bot difficulty. In Teams, players pick Red or Blue (or the host shuffles) and bots fill the empty seats. |
 | **Join with a code** | Enter a friend's room code. |
 | **Local network** | Players on the same Wi-Fi use private rooms; game traffic flows directly between the devices. For play **without internet**, run `npm run lan` on one computer and open the address it prints on every device. |
 
 Up to 8 players per room (12 holes including bots).
+
+**Team voice** — in a Teams match you only talk with your own team, at full volume
+wherever they are; the other team receives silence, not just a muted stream. Everyone
+hears each other again back in the lobby.
 
 **Voice chat** — switch the mic on in the lobby or during a match. Choose open mic or
 push-to-talk (hold **V** or the mic button). Mute anyone from the lobby, see who is
@@ -165,6 +177,7 @@ src/
                         procedural models, city material, ground, sky, effects
     engine/             Game session loop tying simulation, rendering and UI
     net/                Rooms/lobby (PeerJS), host & client sync, voice chat
+    clips/              Rolling WebCodecs recorder, highlight picking, clip overlay
     input/              Mouse / keyboard / touch input
     audio/              WebAudio synthesizer
 scripts/

@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { DIFFICULTY_INFO, MODE_INFO, type Difficulty } from "@/game/config/levels";
+import { TEAMS, TEAM_SIZES } from "@/game/config/teams";
 import { THEMES, THEME_ORDER } from "@/game/config/themes";
 import { NET } from "@/game/net/config";
-import type { RoomSettings } from "@/game/net/protocol";
+import type { LobbyPlayer, RoomSettings } from "@/game/net/protocol";
 import { useNet } from "@/store/net";
 import VoiceControls from "../game/VoiceControls";
 import { SkinSwatch } from "../ui/Badges";
@@ -23,6 +24,38 @@ function Pill<T extends string | number>({ value, current, disabled, onSelect, c
   );
 }
 
+function PlayerRow({ player, isMe }: { player: LobbyPlayer; isMe: boolean }) {
+  const voiceState = useNet((s) => s.voiceState);
+  const toggleMute = useNet((s) => s.toggleMute);
+  const speaking = voiceState?.speaking.includes(player.peerId);
+  const muted = voiceState?.muted.includes(player.peerId);
+  return (
+    <div className={`flex items-center gap-3 rounded-2xl px-3 py-2 ${isMe ? "bg-white/15" : "bg-black/20"}`}>
+      <div className={`rounded-full ${speaking ? "ring-4 ring-lime" : ""}`}>
+        <SkinSwatch skinId={player.skinId} size={40} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-display text-xl">
+          {player.isHost && "👑 "}
+          {player.name}
+          {isMe && <span className="ml-2 text-sm text-white/60">(you)</span>}
+        </div>
+        <div className="text-xs font-bold text-white/60">
+          {player.isHost ? "Host" : player.ready ? "Ready" : "Not ready"}
+          {!player.isHost && ` · ${player.ping} ms`}
+          {speaking && " · talking"}
+        </div>
+      </div>
+      {!isMe && voiceState?.connected.includes(player.peerId) && (
+        <button onClick={() => toggleMute(player.peerId)} className="cursor-pointer rounded-xl bg-white/10 px-2 py-1 text-lg hover:bg-white/20" aria-label={muted ? "Unmute" : "Mute"}>
+          {muted ? "🔇" : "🔊"}
+        </button>
+      )}
+      {player.ready && <span className="rounded-full bg-lime px-2 py-0.5 text-xs font-black text-ink">✓</span>}
+    </div>
+  );
+}
+
 function useCountdown(target: number | null) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -34,7 +67,7 @@ function useCountdown(target: number | null) {
 }
 
 export default function Lobby() {
-  const { room, lobby, voiceState, leave, updateSettings, startMatch, setReady, toggleMute } = useNet();
+  const { room, lobby, leave, updateSettings, startMatch, setReady, setTeam, shuffleTeams } = useNet();
   const [copied, setCopied] = useState<string | null>(null);
   const autoStart = useCountdown(lobby?.autoStartAt ?? null);
   if (!room || !lobby) return null;
@@ -45,6 +78,9 @@ export default function Lobby() {
   const set = (patch: Partial<RoomSettings>) => updateSettings(patch);
   const locked = !isHost || lobby.isPublic;
   const botSeats = Math.min(s.bots, NET.maxHoles - lobby.players.length);
+  const teamMode = s.mode === "teams";
+  const onTeam = (team: number) => lobby.players.filter((p) => p.team === team);
+  const minTeamSize = Math.max(2, onTeam(0).length, onTeam(1).length);
   const inviteLink = `${window.location.origin}${window.location.pathname}?room=${lobby.code}`;
 
   const copy = (text: string, label: string) => {
@@ -85,47 +121,63 @@ export default function Lobby() {
             </h2>
             <VoiceControls />
           </div>
-          {lobby.players.map((p) => {
-            const speaking = voiceState?.speaking.includes(p.peerId);
-            const muted = voiceState?.muted.includes(p.peerId);
-            const isMe = p.peerId === room.myPeerId;
-            return (
-              <div key={p.peerId} className={`flex items-center gap-3 rounded-2xl px-3 py-2 ${isMe ? "bg-white/15" : "bg-black/20"}`}>
-                <div className={`rounded-full ${speaking ? "ring-4 ring-lime" : ""}`}>
-                  <SkinSwatch skinId={p.skinId} size={40} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-display text-xl">
-                    {p.isHost && "👑 "}
-                    {p.name}
-                    {isMe && <span className="ml-2 text-sm text-white/60">(you)</span>}
-                  </div>
-                  <div className="text-xs font-bold text-white/60">
-                    {p.isHost ? "Host" : p.ready ? "Ready" : "Not ready"}
-                    {!p.isHost && ` · ${p.ping} ms`}
-                    {speaking && " · talking"}
-                  </div>
-                </div>
-                {!isMe && voiceState?.connected.includes(p.peerId) && (
-                  <button onClick={() => toggleMute(p.peerId)} className="cursor-pointer rounded-xl bg-white/10 px-2 py-1 text-lg hover:bg-white/20" aria-label={muted ? "Unmute" : "Mute"}>
-                    {muted ? "🔇" : "🔊"}
-                  </button>
-                )}
-                {p.ready && <span className="rounded-full bg-lime px-2 py-0.5 text-xs font-black text-ink">✓</span>}
+          {teamMode ? (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {TEAMS.map((team, t) => {
+                  const members = onTeam(t);
+                  const bots = Math.max(s.teamSize, minTeamSize) - members.length;
+                  return (
+                    <div key={team.name} className="flex flex-col gap-2 rounded-2xl p-2" style={{ boxShadow: `inset 0 0 0 2px ${team.color}`, background: `${team.color}1f` }}>
+                      <div className="flex items-center justify-between gap-2 px-1">
+                        <span className="font-display text-xl" style={{ color: team.color }}>
+                          {team.emoji} {team.name}
+                        </span>
+                        {me && me.team !== t && members.length < s.teamSize && (
+                          <Button variant="ghost" size="sm" onClick={() => setTeam(t)}>
+                            Join {team.name}
+                          </Button>
+                        )}
+                      </div>
+                      {members.map((p) => (
+                        <PlayerRow key={p.peerId} player={p} isMe={p.peerId === room.myPeerId} />
+                      ))}
+                      {bots > 0 && (
+                        <div className="rounded-2xl bg-black/15 px-3 py-2 text-sm font-bold text-white/60">
+                          🤖 {bots} bot{bots === 1 ? "" : "s"} ({DIFFICULTY_INFO[s.difficulty].name})
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
-          {botSeats > 0 && (
-            <div className="rounded-2xl bg-black/15 px-3 py-2 text-sm font-bold text-white/60">
-              🤖 {botSeats} bot{botSeats === 1 ? "" : "s"} ({DIFFICULTY_INFO[s.difficulty].name}) will fill the remaining seats
-            </div>
+              <div className="flex items-center justify-between gap-2 text-sm font-bold text-white/60">
+                <span>📻 In the match you only hear your own team.</span>
+                {isHost && !lobby.isPublic && (
+                  <Button variant="ghost" size="sm" onClick={shuffleTeams}>
+                    🔀 Shuffle teams
+                  </Button>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              {lobby.players.map((p) => (
+                <PlayerRow key={p.peerId} player={p} isMe={p.peerId === room.myPeerId} />
+              ))}
+              {botSeats > 0 && (
+                <div className="rounded-2xl bg-black/15 px-3 py-2 text-sm font-bold text-white/60">
+                  🤖 {botSeats} bot{botSeats === 1 ? "" : "s"} ({DIFFICULTY_INFO[s.difficulty].name}) will fill the remaining seats
+                </div>
+              )}
+            </>
           )}
         </section>
 
         <section className="panel flex flex-col gap-4 rounded-3xl p-4">
           <h2 className="font-display text-2xl">Match settings {locked && <span className="text-sm text-white/50">{lobby.isPublic ? "(public defaults)" : "(host decides)"}</span>}</h2>
           <div className="flex flex-wrap gap-2">
-            {(["classic", "battle"] as const).map((m) => (
+            {(["classic", "battle", "teams"] as const).map((m) => (
               <Pill key={m} value={m} current={s.mode} disabled={locked} onSelect={(mode) => set({ mode })}>
                 {MODE_INFO[m].icon} {MODE_INFO[m].name}
               </Pill>
@@ -162,19 +214,29 @@ export default function Lobby() {
               </Pill>
             ))}
           </div>
-          <label className="flex items-center gap-3 font-bold">
-            <span className="whitespace-nowrap">Bots: {s.bots}</span>
-            <input
-              type="range"
-              min={0}
-              max={10}
-              value={s.bots}
-              disabled={locked}
-              onChange={(e) => set({ bots: Number(e.target.value) })}
-              className="w-full accent-[#ff5c95]"
-              aria-label="Bots"
-            />
-          </label>
+          {teamMode ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {TEAM_SIZES.map((size) => (
+                <Pill key={size} value={size} current={s.teamSize} disabled={locked || size < minTeamSize} onSelect={(teamSize) => set({ teamSize })}>
+                  {size}v{size}
+                </Pill>
+              ))}
+            </div>
+          ) : (
+            <label className="flex items-center gap-3 font-bold">
+              <span className="whitespace-nowrap">Bots: {s.bots}</span>
+              <input
+                type="range"
+                min={0}
+                max={10}
+                value={s.bots}
+                disabled={locked}
+                onChange={(e) => set({ bots: Number(e.target.value) })}
+                className="w-full accent-[#ff5c95]"
+                aria-label="Bots"
+              />
+            </label>
+          )}
         </section>
       </div>
 

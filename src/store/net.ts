@@ -27,6 +27,8 @@ interface NetState {
   updateSettings: (patch: Partial<RoomSettings>) => void;
   startMatch: () => void;
   setReady: (ready: boolean) => void;
+  setTeam: (team: number) => void;
+  shuffleTeams: () => void;
   setMic: (on: boolean) => void;
   setVoiceMode: (mode: VoiceMode) => void;
   toggleMute: (peerId: string) => void;
@@ -109,6 +111,8 @@ export const useNet = create<NetState>()((set, get) => {
     updateSettings: (patch) => get().room?.updateSettings(patch),
     startMatch: () => get().room?.start(),
     setReady: (ready) => get().room?.setReady(ready),
+    setTeam: (team) => get().room?.setTeam(team),
+    shuffleTeams: () => get().room?.shuffleTeams(),
     setMic: (on) => void get().voice?.setMicOn(on),
     setVoiceMode: (mode) => get().voice?.setMode(mode),
     toggleMute: (peerId) => {

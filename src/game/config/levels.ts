@@ -1,6 +1,6 @@
 import type { ThemeId } from "./themes";
 
-export type GameMode = "classic" | "battle" | "solo";
+export type GameMode = "classic" | "battle" | "solo" | "teams";
 
 export type Difficulty = "easy" | "normal" | "hard" | "insane";
 
@@ -34,6 +34,11 @@ export const MODE_INFO: Record<GameMode, { name: string; description: string; ic
     name: "Solo",
     description: "Just you and the city. Swallow as much of it as you can before time is up.",
     icon: "🏙️",
+  },
+  teams: {
+    name: "Teams",
+    description: "Red vs Blue. Teammates can't eat each other; the team with the biggest total size wins.",
+    icon: "🤝",
   },
 };
 

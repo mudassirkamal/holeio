@@ -2,45 +2,20 @@
 
 import { LEVELS } from "@/game/config/levels";
 import { SKIN_BY_ID } from "@/game/config/skins";
+import { TEAMS } from "@/game/config/teams";
+import type { MatchResult } from "@/game/engine/types";
 import { useApp } from "@/store/app";
 import { useNet } from "@/store/net";
 import { Stars } from "../ui/Badges";
 import { Button } from "../ui/Button";
+import { biteName } from "@/game/config/objectNames";
 import { levelMatch } from "../screens/levelMatch";
+import ClipCard from "./ClipCard";
+import TeamBar from "./TeamBar";
 
-const BITE_NAMES: Partial<Record<string, string>> = {
-  skyscraper: "Skyscraper",
-  tower: "Tower",
-  office: "Office",
-  apartment: "Apartments",
-  gasStation: "Gas station",
-  waterTower: "Water tower",
-  shop: "Shop",
-  house: "House",
-  houseSmall: "Cottage",
-  bus: "Bus",
-  truck: "Truck",
-  billboard: "Billboard",
-  statue: "Statue",
-  fountain: "Fountain",
-  lifeguardTower: "Lifeguard tower",
-  busStop: "Bus stop",
-  phoneBooth: "Phone booth",
-  newsStand: "News stand",
-  trafficLight: "Traffic light",
-  lampPost: "Lamp post",
-  pineTree: "Pine tree",
-  palmTree: "Palm tree",
-  beachUmbrella: "Umbrella",
-  parkingMeter: "Parking meter",
-  trashCan: "Trash can",
-  flowerPot: "Flower pot",
-  deckChair: "Deck chair",
-};
 
-const biteName = (id: string) => BITE_NAMES[id] ?? id.charAt(0).toUpperCase() + id.slice(1);
-
-function headline(mode: string, rank: number, percent: number, won: boolean, eliminated: boolean) {
+function headline({ mode, rank, percent, eliminated, teams }: MatchResult, won: boolean) {
+  if (teams) return teams.winner < 0 ? "IT'S A DRAW!" : `${TEAMS[teams.winner].name.toUpperCase()} TEAM WINS!`;
   if (mode === "solo") return won ? `${percent.toFixed(0)}% SWALLOWED!` : `${percent.toFixed(0)}% swallowed`;
   if (rank === 1) return mode === "battle" ? "LAST HOLE STANDING!" : "VICTORY!";
   if (eliminated) return "SWALLOWED!";
@@ -53,6 +28,7 @@ export default function Results() {
   const match = useApp((s) => s.match);
   const startMatch = useApp((s) => s.startMatch);
   const quit = useApp((s) => s.quitToMenu);
+  const clips = useApp((s) => s.clips);
   const room = useNet((s) => s.room);
   const leaveRoom = useNet((s) => s.leave);
   if (!result || !reward || !match) return null;
@@ -78,8 +54,13 @@ export default function Results() {
         <div>
           {level && <div className="text-sm font-black uppercase tracking-widest text-white/55">Level {level.id} · {level.name}</div>}
           <h2 className={`font-display text-5xl text-outline sm:text-6xl short:text-4xl ${won ? "text-[#ffe066]" : "text-white"}`}>
-            {headline(result.mode, result.rank, result.percent, won, result.eliminated)}
+            {headline(result, won)}
           </h2>
+          {result.teams && (
+            <div className="mt-2">
+              <TeamBar teams={result.teams} large />
+            </div>
+          )}
           {level && (
             <div className="mt-2 flex justify-center short:mt-1">
               <Stars count={reward.stars} size="text-5xl short:text-4xl" animate />
@@ -98,12 +79,14 @@ export default function Results() {
         </div>
 
         <div>
+          {clips.length > 0 && <ClipCard clips={clips} />}
           {result.mode !== "solo" && (
-            <div className="mt-4 max-h-40 overflow-y-auto rounded-2xl bg-black/25 p-2 scrollbar-thin short:mt-0 short:max-h-36">
+            // On short screens a clip takes the leaderboard's place, so the buttons stay in view.
+            <div className={`mt-4 max-h-40 overflow-y-auto rounded-2xl bg-black/25 p-2 scrollbar-thin short:mt-0 short:max-h-36 ${clips.length > 0 ? "short:hidden" : ""}`}>
               {result.leaderboard.map((row) => (
                 <div key={row.id} className={`flex items-center gap-2 rounded-xl px-2 py-1 text-sm font-extrabold ${row.isPlayer ? "bg-white/20" : ""}`}>
                   <span className="w-6 text-right text-white/60">{row.rank}</span>
-                  <span className="h-3 w-3 rounded-full" style={{ background: SKIN_BY_ID[row.skinId].colors[0] }} />
+                  <span className="h-3 w-3 rounded-full" style={{ background: row.team >= 0 ? TEAMS[row.team].color : SKIN_BY_ID[row.skinId].colors[0] }} />
                   <span className="flex-1 truncate text-left">{row.name}</span>
                   <span className="tabular-nums">{row.score.toLocaleString()}</span>
                 </div>

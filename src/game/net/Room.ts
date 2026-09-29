@@ -15,6 +15,7 @@ import {
   type MatchStart,
   type PlayerProfile,
   type RejectReason,
+  type RosterEntry,
   type RoomSettings,
 } from "./protocol";
 
@@ -79,6 +80,7 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   duration: 120,
   blocksPerSide: 5,
   bots: 5,
+  teamSize: 4,
   difficulty: "normal",
 };
 
@@ -179,7 +181,7 @@ export class Room extends Emitter<RoomEvents> {
       code,
       isPublic,
       phase: "lobby",
-      players: [{ ...sanitize(profile), peerId: peer.id, isHost: true, ready: true, ping: 0 }],
+      players: [{ ...sanitize(profile), peerId: peer.id, isHost: true, ready: true, ping: 0, team: 0 }],
       settings: isPublic ? { ...DEFAULT_SETTINGS, bots: 6 } : { ...DEFAULT_SETTINGS },
       autoStartAt: null,
     };
@@ -307,7 +309,7 @@ export class Room extends Emitter<RoomEvents> {
         if (this.lobby.phase !== "lobby") return reject("in-game");
         if (this.lobby.players.length >= NET.maxPlayers) return reject("full");
         this.channels.set(conn.peer, { control: conn, fast: null, lastSeen: Date.now() });
-        this.lobby.players.push({ ...sanitize(msg.profile), peerId: conn.peer, isHost: false, ready: false, ping: 0 });
+        this.lobby.players.push({ ...sanitize(msg.profile), peerId: conn.peer, isHost: false, ready: false, ping: 0, team: this.smallerTeam() });
         send(conn, { t: "welcome", you: conn.peer, lobby: this.lobby });
         this.updateAutoStart(Date.now());
         this.broadcastLobby();
@@ -318,6 +320,9 @@ export class Room extends Emitter<RoomEvents> {
         break;
       case "ready":
         this.patchPlayer(conn.peer, { ready: msg.ready });
+        break;
+      case "team":
+        this.assignTeam(conn.peer, msg.team);
         break;
       case "ping":
         send(conn, { t: "pong", at: msg.at });
@@ -369,8 +374,62 @@ export class Room extends Emitter<RoomEvents> {
 
   updateSettings(patch: Partial<RoomSettings>) {
     if (!this.isHost || this.lobby.phase !== "lobby") return;
-    this.lobby.settings = { ...this.lobby.settings, ...patch };
+    const settings = { ...this.lobby.settings, ...patch };
+    // Every human needs a seat: a team can't be smaller than its players.
+    settings.teamSize = Math.min(6, Math.max(settings.teamSize, this.minTeamSize()));
+    this.lobby.settings = settings;
     this.broadcastLobby();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Teams
+  // ---------------------------------------------------------------------------
+
+  private humansOn(team: number) {
+    return this.lobby.players.filter((p) => p.team === team).length;
+  }
+
+  /** Smallest team size that seats everyone (2v2 at least). */
+  minTeamSize() {
+    return Math.max(2, this.humansOn(0), this.humansOn(1));
+  }
+
+  private smallerTeam() {
+    return this.humansOn(1) < this.humansOn(0) ? 1 : 0;
+  }
+
+  /** Host: moves a player to a team if it has a free seat. */
+  private assignTeam(peerId: string, team: number) {
+    if (this.lobby.phase !== "lobby" || (team !== 0 && team !== 1)) return;
+    const player = this.lobby.players.find((p) => p.peerId === peerId);
+    if (!player || player.team === team) return;
+    if (this.lobby.settings.mode === "teams" && this.humansOn(team) >= this.lobby.settings.teamSize) return;
+    this.patchPlayer(peerId, { team });
+  }
+
+  /** Asks to switch team (the host decides whether there is room). */
+  setTeam(team: number) {
+    if (this.isHost) this.assignTeam(this.myPeerId, team);
+    else send(this.hostControl, { t: "team", team });
+  }
+
+  /** Host: deals the players into two random, balanced teams. */
+  shuffleTeams() {
+    if (!this.isHost || this.lobby.phase !== "lobby") return;
+    new Rng(Date.now()).shuffle([...this.lobby.players]).forEach((p, i) => (p.team = i % 2));
+    this.broadcastLobby();
+  }
+
+  /** Team match roster: every player on their team, bots filling the empty seats. */
+  private teamRoster(rng: Rng): RosterEntry[] {
+    const players = this.lobby.players;
+    const size = Math.max(this.lobby.settings.teamSize, this.minTeamSize());
+    const botsFor = [size - this.humansOn(0), size - this.humansOn(1)];
+    const bots = createBotRoster(botsFor[0] + botsFor[1], rng, players.map((p) => p.skinId));
+    return [
+      ...players.map((p) => ({ peerId: p.peerId, name: p.name, skinId: p.skinId, team: p.team })),
+      ...bots.map((b, i) => ({ ...b, peerId: null, team: i < botsFor[0] ? 0 : 1 })),
+    ];
   }
 
   /** Host: builds the roster (players + bots) and starts the match everywhere. */
@@ -381,7 +440,13 @@ export class Room extends Emitter<RoomEvents> {
     const s = this.lobby.settings;
     const players = this.lobby.players;
     const botCount = Math.max(0, Math.min(s.bots, NET.maxHoles - players.length));
-    const bots = createBotRoster(botCount, rng, players.map((p) => p.skinId));
+    const roster: RosterEntry[] =
+      s.mode === "teams"
+        ? this.teamRoster(rng)
+        : [
+            ...players.map((p) => ({ peerId: p.peerId, name: p.name, skinId: p.skinId })),
+            ...createBotRoster(botCount, rng, players.map((p) => p.skinId)).map((b) => ({ ...b, peerId: null })),
+          ];
     const match: MatchStart = {
       seed,
       themeId: s.themeId === "random" ? rng.pick(THEME_ORDER) : s.themeId,
@@ -389,10 +454,7 @@ export class Room extends Emitter<RoomEvents> {
       duration: s.duration,
       blocksPerSide: s.blocksPerSide,
       difficulty: s.difficulty,
-      roster: [
-        ...players.map((p) => ({ peerId: p.peerId, name: p.name, skinId: p.skinId })),
-        ...bots.map((b) => ({ ...b, peerId: null })),
-      ],
+      roster,
     };
     this.lobby.phase = "playing";
     this.lobby.autoStartAt = null;

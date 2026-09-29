@@ -12,6 +12,8 @@ export interface Settings {
   music: boolean;
   minimap: boolean;
   vibration: boolean;
+  /** Keep a rolling recording for highlight clips. */
+  clips: boolean;
 }
 
 interface ProfileState {
@@ -42,7 +44,7 @@ const initialProfile = () => ({
   levelStars: {} as Record<number, number>,
   gamesPlayed: 0,
   wins: 0,
-  settings: { quality: detectQuality(), sound: true, music: true, minimap: true, vibration: true } as Settings,
+  settings: { quality: detectQuality(), sound: true, music: true, minimap: true, vibration: true, clips: true } as Settings,
 });
 
 export const useProfile = create<ProfileState>()(

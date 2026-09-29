@@ -2,7 +2,7 @@
   "name": "hole-rush",
   "version": "1.0.0",
   "private": true,
-  "description": "A hole.io-style 3D arena game built with Next.js and Three.js \u2014 levels, skins and strategic AI bots.",
+  "description": "A hole.io-style 3D arena game built with Next.js and Three.js — levels, skins and strategic AI bots.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -16,6 +16,7 @@
     "lan:serve": "tsx scripts/lan-server.ts"
   },
   "dependencies": {
+    "mediabunny": "^1.61.0",
     "n8ao": "^2.0.1",
     "next": "^16.3.6",
     "peerjs": "^1.5.5",

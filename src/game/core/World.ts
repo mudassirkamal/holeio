@@ -17,6 +17,8 @@ export interface HoleSetup {
   skinId: SkinId;
   isPlayer: boolean;
   controller: HoleController | null;
+  /** Team index (team mode only). */
+  team?: number;
 }
 
 export interface MatchSetup {
@@ -82,6 +84,7 @@ export class World {
 
     setup.holes.forEach((h, i) => {
       const hole = new Hole(i, h.name, h.skinId, h.isPlayer, h.controller);
+      if (this.mode === "teams") hole.team = h.team ?? i % 2;
       this.holes.push(hole);
       this.placeHole(hole);
       hole.protection = 0;
@@ -469,6 +472,7 @@ export class World {
       for (let j = i + 1; j < holes.length; j++) {
         const b = holes[j];
         if (!b.alive || !a.alive) continue;
+        if (this.areTeammates(a, b)) continue;
         const big = a.radius >= b.radius ? a : b;
         const small = big === a ? b : a;
         if (big.isProtected || small.isProtected || !big.canEat(small)) continue;
@@ -562,6 +566,18 @@ export class World {
 
   rankOf(hole: Hole) {
     return this.standings().find((s) => s.hole === hole)?.rank ?? this.holes.length;
+  }
+
+  /** Team mode: holes on the same team never eat each other. */
+  areTeammates(a: Hole, b: Hole) {
+    return a.team >= 0 && a.team === b.team;
+  }
+
+  /** Team mode: each team's total score (index = team). */
+  teamScores() {
+    const scores = [0, 0];
+    for (const h of this.holes) if (h.team >= 0) scores[h.team] += h.score;
+    return scores;
   }
 
   /** Share of the city's total value swallowed by `hole`, in percent. */

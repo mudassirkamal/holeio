@@ -1,6 +1,7 @@
 import type { GameMode } from "../config/levels";
 import type { ObjectKindId } from "../config/objectCatalog";
 import type { SkinId } from "../config/skins";
+import type { ClipFile } from "../clips/ClipRecorder";
 
 export interface LeaderboardRow {
   id: number;
@@ -11,6 +12,8 @@ export interface LeaderboardRow {
   isPlayer: boolean;
   isBot: boolean;
   alive: boolean;
+  /** Team index in team mode, -1 otherwise. */
+  team: number;
 }
 
 export interface MinimapDot {
@@ -20,6 +23,13 @@ export interface MinimapDot {
   skinId: SkinId;
   isPlayer: boolean;
   alive: boolean;
+  team: number;
+}
+
+/** Team mode: the player's team and each team's total score. */
+export interface TeamStatus {
+  player: number;
+  scores: number[];
 }
 
 export interface HudSnapshot {
@@ -43,6 +53,7 @@ export interface HudSnapshot {
   combo: number;
   leaderboard: LeaderboardRow[];
   minimap: MinimapDot[];
+  teams: TeamStatus | null;
   paused: boolean;
 }
 
@@ -53,6 +64,9 @@ export type FeedItem =
       eaterSkin: SkinId;
       victim: string;
       victimSkin: SkinId;
+      /** Team indexes in team mode, -1 otherwise. */
+      eaterTeam: number;
+      victimTeam: number;
       byPlayer: boolean;
       ofPlayer: boolean;
     }
@@ -72,4 +86,12 @@ export interface MatchResult {
   eliminated: boolean;
   leaderboard: LeaderboardRow[];
   biggestBite: ObjectKindId | null;
+  /** Team mode: final team totals and the winner (-1 on a draw). */
+  teams: (TeamStatus & { winner: number }) | null;
+}
+
+/** A recorded highlight: the best moment of a match (auto) or one the player saved. */
+export interface SessionClip extends ClipFile {
+  caption: string;
+  auto: boolean;
 }

@@ -5,7 +5,7 @@ import type { GameEvent } from "../core/events";
 import type { World } from "../core/World";
 
 /** Bump when the wire format changes; mismatched peers are rejected. */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 export interface PlayerProfile {
   name: string;
@@ -18,15 +18,19 @@ export interface LobbyPlayer extends PlayerProfile {
   ready: boolean;
   /** Round-trip time to the host in ms. */
   ping: number;
+  /** Chosen team (used when the mode is "teams"). */
+  team: number;
 }
 
 export interface RoomSettings {
-  mode: "classic" | "battle";
+  mode: "classic" | "battle" | "teams";
   themeId: ThemeId | "random";
   duration: number;
   blocksPerSide: number;
-  /** Bots added to fill the match. */
+  /** Bots added to fill the match (classic/battle). */
   bots: number;
+  /** Holes per team in team mode; bots fill the empty seats. */
+  teamSize: number;
   difficulty: Difficulty;
 }
 
@@ -43,6 +47,8 @@ export interface LobbyState {
 export interface RosterEntry extends PlayerProfile {
   /** Null for bots. */
   peerId: string | null;
+  /** Team index (team mode only). */
+  team?: number;
 }
 
 export interface MatchStart {
@@ -75,6 +81,7 @@ export type ControlMessage =
   | { t: "lobby"; lobby: LobbyState }
   | { t: "profile"; profile: PlayerProfile }
   | { t: "ready"; ready: boolean }
+  | { t: "team"; team: number }
   | { t: "start"; match: MatchStart }
   | { t: "events"; events: GameEvent[] }
   | { t: "movers"; states: ReturnType<World["moverStates"]> }
@@ -93,3 +100,9 @@ export type FastMessage =
   | { t: "snap"; time: number; running: boolean; holes: number[] };
 
 export const round2 = (v: number) => Math.round(v * 100) / 100;
+
+/** Team match: the other human players on `peerId`'s team. */
+export function teammatePeerIds(start: MatchStart, peerId: string) {
+  const team = start.roster.find((e) => e.peerId === peerId)?.team;
+  return new Set(start.roster.flatMap((e) => (e.peerId && e.peerId !== peerId && e.team === team ? [e.peerId] : [])));
+}

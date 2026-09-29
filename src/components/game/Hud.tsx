@@ -2,13 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { DEFAULT_SOLO_STARS, LEVELS, MODE_INFO } from "@/game/config/levels";
-import { SKIN_BY_ID } from "@/game/config/skins";
+import { SKIN_BY_ID, type SkinId } from "@/game/config/skins";
+import { TEAMS } from "@/game/config/teams";
 import type { HudSnapshot } from "@/game/engine/types";
 import { isMobileDevice } from "@/game/render/quality";
 import { useApp } from "@/store/app";
 import { useNet } from "@/store/net";
 import { useProfile } from "@/store/profile";
 import { sessionRef } from "./sessionRef";
+import TeamBar from "./TeamBar";
 import VoiceControls from "./VoiceControls";
 
 const formatTime = (seconds: number) => {
@@ -17,6 +19,9 @@ const formatTime = (seconds: number) => {
 };
 
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th"}`;
+
+/** Label/dot color for a hole: its team in team mode, otherwise its skin. */
+const holeColor = (team: number, skinId: SkinId) => (team >= 0 ? TEAMS[team].color : SKIN_BY_ID[skinId].colors[0]);
 
 function Timer({ hud }: { hud: HudSnapshot }) {
   const urgent = hud.timeLeft <= 10 && hud.countdown <= 0;
@@ -32,6 +37,11 @@ function Timer({ hud }: { hud: HudSnapshot }) {
         {hud.mode === "battle" && ` · ${hud.holesAlive} alive`}
         {hud.online && ` · 🌐${hud.ping > 0 ? ` ${hud.ping} ms` : ""}`}
       </div>
+      {hud.teams && (
+        <div className="w-44 sm:w-72 short:w-56">
+          <TeamBar teams={hud.teams} />
+        </div>
+      )}
     </div>
   );
 }
@@ -45,6 +55,7 @@ function VoiceHud() {
   const names = (voiceState?.speaking ?? []).map((id) => lobby?.players.find((p) => p.peerId === id)?.name).filter(Boolean);
   return (
     <div className="flex flex-col items-end gap-1">
+      {voiceState?.teamOnly && <div className="rounded-full bg-black/45 px-3 py-0.5 text-xs font-black uppercase tracking-widest text-white/80">📻 Team voice</div>}
       {names.length > 0 && (
         <div className="rounded-2xl bg-black/45 px-3 py-1 text-sm font-extrabold">
           🔊 {names.join(", ")}
@@ -68,7 +79,13 @@ function SizeMeter({ hud }: { hud: HudSnapshot }) {
       <div>
         <div className="hidden text-[10px] font-black uppercase tracking-[0.2em] text-white/60 sm:block short:hidden">Size</div>
         <div className="font-display text-xl leading-none tabular-nums sm:text-2xl short:text-xl">{hud.score.toLocaleString()}</div>
-        {hud.mode !== "solo" && <div className="text-xs font-extrabold text-white/70">{ordinal(hud.rank)} of {hud.holes}</div>}
+        {hud.teams ? (
+          <div className="text-xs font-extrabold" style={{ color: TEAMS[hud.teams.player].color }}>
+            {TEAMS[hud.teams.player].emoji} {TEAMS[hud.teams.player].name} team
+          </div>
+        ) : (
+          hud.mode !== "solo" && <div className="text-xs font-extrabold text-white/70">{ordinal(hud.rank)} of {hud.holes}</div>
+        )}
       </div>
     </div>
   );
@@ -109,7 +126,7 @@ function Leaderboard({ hud }: { hud: HudSnapshot }) {
           className={`items-center gap-2 rounded-xl px-2 py-0.5 text-xs font-extrabold sm:py-1 sm:text-sm short:py-0.5 short:text-xs ${i >= 3 && !row.isPlayer ? "hidden sm:flex short:hidden" : "flex"} ${row.isPlayer ? "bg-white/20" : ""} ${row.alive ? "" : "opacity-40 line-through"}`}
         >
           <span className="w-5 text-right text-white/60">{row.rank}</span>
-          <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: SKIN_BY_ID[row.skinId].colors[0] }} />
+          <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: holeColor(row.team, row.skinId) }} />
           <span className="flex-1 truncate">
             {row.rank === 1 ? "👑 " : ""}
             {row.name}
@@ -144,7 +161,7 @@ function Minimap({ hud }: { hud: HudSnapshot }) {
       const x = pad + (dot.x + 1) * scale;
       const y = pad + (dot.z + 1) * scale;
       const r = Math.max(3, dot.r * scale);
-      ctx.fillStyle = SKIN_BY_ID[dot.skinId].colors[0];
+      ctx.fillStyle = holeColor(dot.team, dot.skinId);
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fill();
@@ -180,9 +197,9 @@ function KillFeed() {
             key={id}
             className={`flex items-center gap-2 rounded-full px-3 py-1 text-sm font-extrabold animate-rise short:py-0.5 short:text-xs ${item.byPlayer ? "bg-[#2fbf4a]/80" : item.ofPlayer ? "bg-[#e8175d]/80" : "bg-black/45"}`}
           >
-            <span style={{ color: item.byPlayer ? "#fff" : SKIN_BY_ID[item.eaterSkin].colors[0] }}>{item.eater}</span>
+            <span style={{ color: item.byPlayer ? "#fff" : holeColor(item.eaterTeam, item.eaterSkin) }}>{item.eater}</span>
             <span>🕳️</span>
-            <span style={{ color: item.ofPlayer ? "#fff" : SKIN_BY_ID[item.victimSkin].colors[0] }}>{item.victim}</span>
+            <span style={{ color: item.ofPlayer ? "#fff" : holeColor(item.victimTeam, item.victimSkin) }}>{item.victim}</span>
           </div>
         ) : null,
       )}
@@ -228,6 +245,29 @@ function Joystick() {
     <div ref={baseRef} className="pointer-events-none fixed left-0 top-0 grid h-32 w-32 place-items-center rounded-full border-4 border-white/30 bg-white/10 opacity-0 transition-opacity">
       <div ref={knobRef} className="h-14 w-14 rounded-full bg-white/70 shadow-lg" />
     </div>
+  );
+}
+
+/** Saves the last few seconds of play as a clip (shared from the results screen). */
+function ClipButton() {
+  const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
+  const save = () => {
+    const session = sessionRef.current;
+    if (!session || state === "saving") return;
+    setState("saving");
+    void session.saveClip().then((ok) => {
+      setState(ok ? "saved" : "idle");
+      if (ok) window.setTimeout(() => setState("idle"), 1600);
+    });
+  };
+  return (
+    <button
+      onClick={save}
+      className="pointer-events-auto flex h-10 cursor-pointer items-center gap-1.5 self-start rounded-2xl bg-black/45 px-3 text-sm font-extrabold ring-1 ring-white/20 transition hover:bg-black/60"
+      aria-label="Save a clip of the last few seconds"
+    >
+      🎬 {state === "saving" ? "Saving…" : state === "saved" ? "Saved!" : <span className="hidden sm:inline">Clip it</span>}
+    </button>
   );
 }
 
@@ -281,6 +321,7 @@ export default function Hud() {
             <SizeMeter hud={hud} />
           </div>
           {hud.mode === "solo" && <SoloProgress hud={hud} />}
+          {sessionRef.current?.canRecordClips && hud.countdown <= 0 && <ClipButton />}
         </div>
         <div className="absolute left-1/2 top-4 hidden -translate-x-1/2 sm:block short:top-2">
           <Timer hud={hud} />

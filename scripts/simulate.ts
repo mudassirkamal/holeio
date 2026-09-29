@@ -32,9 +32,14 @@ const dt = 1 / 30;
 const started = performance.now();
 let steps = 0;
 let kills = 0;
+let friendlyKills = 0;
 while (!world.finished) {
   world.step(dt);
-  for (const e of world.events) if (e.type === "holeEaten") kills++;
+  for (const e of world.events) {
+    if (e.type !== "holeEaten") continue;
+    kills++;
+    if (world.areTeammates(world.holes[e.eaterId], world.holes[e.victimId])) friendlyKills++;
+  }
   world.events.length = 0;
   world.drainDirty(() => {});
   steps++;
@@ -49,4 +54,8 @@ for (const { hole, rank } of world.standings()) {
   console.log(
     `${String(rank).padStart(2)}. ${hole.name.padEnd(10)} score ${hole.score.toFixed(0).padStart(6)}  r=${holeRadiusForScore(hole.score).toFixed(1).padStart(5)}  eaten ${String(hole.objectsEaten).padStart(4)}  kills ${hole.kills} deaths ${hole.deaths}  ${world.percentEaten(hole).toFixed(1)}%${hole.eliminated ? " (out)" : ""}`,
   );
+}
+if (world.mode === "teams") {
+  const [red, blue] = world.teamScores().map(Math.round);
+  console.log(`teams: red ${red} vs blue ${blue}, friendly kills ${friendlyKills}`);
 }
