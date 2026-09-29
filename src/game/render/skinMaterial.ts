@@ -227,10 +227,10 @@ export function createHaloMaterial(uniforms: SkinUniforms) {
       varying vec2 vLocal;
       void main() {
         float r = length(vLocal);
-        float t = clamp((r - 1.08) / 0.5, 0.0, 1.0);
-        float fall = pow(1.0 - t, 2.2);
+        float t = clamp((r - 1.08) / 0.34, 0.0, 1.0);
+        float fall = pow(1.0 - t, 2.6);
         float pulse = 0.85 + 0.15 * sin(uTime * 2.5);
-        gl_FragColor = vec4(uColorA * fall * uGlow * 0.5 * pulse * uOpacity, 1.0);
+        gl_FragColor = vec4(uColorA * fall * uGlow * 0.4 * pulse * uOpacity, 1.0);
         #include <colorspace_fragment>
       }
     `,

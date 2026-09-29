@@ -33,7 +33,7 @@ const discGeometry = new CircleGeometry(1, 72).rotateX(-Math.PI / 2);
 const shaftGeometry = new CylinderGeometry(1, 1, 1, 72, 1, true).translate(0, -0.5, 0);
 const capGeometry = new CircleGeometry(1.02, 48).rotateX(-Math.PI / 2);
 const rimGeometry = new RingGeometry(1, 1 + RIM_WIDTH, 128, 1).rotateX(-Math.PI / 2);
-const haloGeometry = new RingGeometry(1 + RIM_WIDTH * 0.8, 1.6, 96, 1).rotateX(-Math.PI / 2);
+const haloGeometry = new RingGeometry(1 + RIM_WIDTH * 0.8, 1.42, 96, 1).rotateX(-Math.PI / 2);
 
 /** Ground decals (rims, halos) are cut away inside any hole's opening. */
 function stencilOutside(material: Material) {
