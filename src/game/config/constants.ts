@@ -1,4 +1,5 @@
 export const GAME_NAME = "HOLE RUSH";
+export const DEVELOPER = { name: "Mudassir Kamal", email: "mudassirkamal@proton.me" } as const;
 
 /** City geometry (meters). */
 export const CITY = {

@@ -8,6 +8,8 @@ const body = Nunito({ subsets: ["latin"], variable: "--font-nunito", weight: ["5
 export const metadata: Metadata = {
   title: "Hole Rush — swallow the city",
   description: "A hole.io-style 3D arena game: swallow the city, grow bigger and outsmart self-trained AI bots.",
+  authors: [{ name: "Mudassir Kamal", url: "mailto:mudassirkamal@proton.me" }],
+  creator: "Mudassir Kamal",
   // Added to the iOS home screen, the game opens without Safari's bars.
   appleWebApp: { capable: true, title: "Hole Rush", statusBarStyle: "black-translucent" },
 };

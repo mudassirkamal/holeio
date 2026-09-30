@@ -9,6 +9,7 @@ import { useApp } from "@/store/app";
 import { highestUnlockedLevel, useProfile } from "@/store/profile";
 import { SkinSwatch } from "../ui/Badges";
 import { Button } from "../ui/Button";
+import { DeveloperCredit } from "../ui/DeveloperCredit";
 import { FullscreenButton, InstallTip, useInstallTip } from "../ui/MobileExtras";
 import { Currency } from "../ui/ScreenHeader";
 import { levelMatch } from "./levelMatch";
@@ -45,7 +46,7 @@ export default function MainMenu() {
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-6 sm:gap-8 short:flex-row short:gap-6 short:py-2">
+      <div className="flex flex-1 flex-col items-center justify-center gap-6 short:flex-row short:gap-6 short:py-2">
         <div className="animate-float text-center short:flex-1">
           <h1
             className="bg-[linear-gradient(90deg,#ffe066,#ff5c95,#4fd6ff,#7cf05a,#ffe066)] bg-[length:200%_100%] bg-clip-text font-display text-7xl leading-none text-transparent drop-shadow-[0_6px_0_rgba(0,0,0,0.35)] animate-shine sm:text-9xl short:text-7xl"
@@ -55,6 +56,7 @@ export default function MainMenu() {
           <p className="mt-2 font-display text-lg tracking-wide text-white/85 text-outline sm:text-2xl short:text-lg">
             Swallow the city. Outgrow the bots.
           </p>
+          <DeveloperCredit className="mt-3 short:mt-2" />
         </div>
 
         <div className="panel flex w-full max-w-md flex-col gap-4 rounded-3xl p-5 animate-rise short:max-w-sm short:gap-2.5 short:p-4">
@@ -107,16 +109,16 @@ export default function MainMenu() {
         </div>
       </div>
 
-      {installTip.visible ? (
-        <div className="short:hidden">
+      <footer className="text-center short:hidden">
+        {installTip.visible ? (
           <InstallTip onDismiss={installTip.dismiss} />
-        </div>
-      ) : (
-        <p className="text-center text-xs font-bold text-white/55 short:hidden">
-          Bots evolved by self-play{TRAINING_INFO.generations > 0 ? ` over ${TRAINING_INFO.generations} generations` : ""} ·
-          Mouse / WASD / touch to move
-        </p>
-      )}
+        ) : (
+          <p className="text-xs font-bold text-white/55">
+            Bots evolved by self-play{TRAINING_INFO.generations > 0 ? ` over ${TRAINING_INFO.generations} generations` : ""} ·
+            Mouse / WASD / touch to move
+          </p>
+        )}
+      </footer>
     </div>
   );
 }

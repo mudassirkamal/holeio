@@ -6,6 +6,8 @@ swallow rival holes — all controlled by AI bots whose strategy was evolved by 
 
 Built with **Next.js 16**, **React 19**, **Three.js** and **TypeScript**.
 
+Developed by **Mudassir Kamal** — [mudassirkamal@proton.me](mailto:mudassirkamal@proton.me)
+
 ## Features
 
 - **Five hand-styled worlds, generated procedurally**: Metro City, Sunset Suburbs,

@@ -6,6 +6,7 @@ import { haptics } from "@/game/input/haptics";
 import type { QualityLevel } from "@/game/render/quality";
 import { useProfile } from "@/store/profile";
 import { Button } from "../ui/Button";
+import { DeveloperCredit } from "../ui/DeveloperCredit";
 import { ScreenHeader } from "../ui/ScreenHeader";
 
 const QUALITY_LABELS: Record<QualityLevel, string> = {
@@ -94,6 +95,11 @@ export default function Settings() {
             <li>👑 Holes 14% bigger can swallow smaller holes</li>
             <li>⚡ Chain bites quickly for combos</li>
           </ul>
+        </section>
+        <section className="panel rounded-3xl p-5 md:col-span-2">
+          <h2 className="mb-2 font-display text-2xl">About</h2>
+          <DeveloperCredit className="text-sm" />
+          <p className="mt-2 text-sm font-bold text-white/60">Questions, feedback or bug reports? Send an email anytime.</p>
         </section>
       </div>
     </div>
