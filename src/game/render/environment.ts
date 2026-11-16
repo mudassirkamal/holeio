@@ -72,7 +72,7 @@ function createSkyMaterial(theme: ThemeDef, sunDirection: Vector3) {
 
 type WeatherKind = ThemeDef["weather"];
 
-function createWeather(kind: WeatherKind) {
+function createWeather(kind: WeatherKind, tint?: string) {
   if (kind === "none") return null;
   const count = kind === "snow" ? 2600 : kind === "leaves" ? 500 : 420;
   const rng = new Rng(99);
@@ -103,7 +103,7 @@ function createWeather(kind: WeatherKind) {
       uFall: { value: settings.fall },
       uSway: { value: settings.sway },
       uSize: { value: settings.size },
-      uColor: { value: new Color(settings.color) },
+      uColor: { value: new Color(tint ?? settings.color) },
       uPixelRatio: { value: 1 },
       uFireflies: { value: kind === "fireflies" ? 1 : 0 },
     },
@@ -217,24 +217,26 @@ export class Environment {
     scene.add(this.sun);
     scene.add(this.sun.target);
 
-    this.weather = createWeather(theme.weather);
+    this.weather = createWeather(theme.weather, theme.weatherColor);
     if (this.weather) scene.add(this.weather.points);
   }
 
   /** Keeps the shadow frustum tight around what the camera sees. */
-  follow(target: Vector3, viewRadius: number, pixelRatio: number) {
-    const texel = (viewRadius * 2) / this.shadowMapSize;
-    const x = Math.round(target.x / texel) * texel;
-    const z = Math.round(target.z / texel) * texel;
-    this.sun.target.position.set(x, 0, z);
-    this.sun.position.set(x, 0, z).addScaledVector(this.sunDirection, 400);
-    const cam = this.sun.shadow.camera;
-    if (cam.right !== viewRadius) {
-      cam.left = -viewRadius;
-      cam.right = viewRadius;
-      cam.top = viewRadius;
-      cam.bottom = -viewRadius;
-      cam.updateProjectionMatrix();
+  follow(target: Vector3, viewRadius: number, pixelRatio: number, moveSun = true) {
+    if (moveSun) {
+      const texel = (viewRadius * 2) / this.shadowMapSize;
+      const x = Math.round(target.x / texel) * texel;
+      const z = Math.round(target.z / texel) * texel;
+      this.sun.target.position.set(x, 0, z);
+      this.sun.position.set(x, 0, z).addScaledVector(this.sunDirection, 400);
+      const cam = this.sun.shadow.camera;
+      if (cam.right !== viewRadius) {
+        cam.left = -viewRadius;
+        cam.right = viewRadius;
+        cam.top = viewRadius;
+        cam.bottom = -viewRadius;
+        cam.updateProjectionMatrix();
+      }
     }
     if (this.weather) {
       this.weather.material.uniforms.uCenter.value.set(target.x, 0, target.z);

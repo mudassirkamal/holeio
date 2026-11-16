@@ -114,6 +114,9 @@ export interface HoleController {
 export class Hole {
   x = 0;
   z = 0;
+  /** Position before the latest simulation step: frames between two steps blend from it. */
+  prevX = 0;
+  prevZ = 0;
   vx = 0;
   vz = 0;
   radius: number = HOLE.startRadius;

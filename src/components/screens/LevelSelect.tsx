@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { DIFFICULTY_INFO, LEVELS, LEVELS_PER_WORLD, MODE_INFO, type LevelDef } from "@/game/config/levels";
-import { THEMES, THEME_ORDER } from "@/game/config/themes";
+import { DIFFICULTY_INFO, MODE_INFO, WORLDS, type LevelDef } from "@/game/config/levels";
+import { THEMES, type ThemeId } from "@/game/config/themes";
 import { levelBoard } from "@/game/leaderboard/boards";
 import { useApp } from "@/store/app";
 import { highestUnlockedLevel, useProfile } from "@/store/profile";
@@ -12,13 +12,7 @@ import { GlobalBoard } from "../ui/GlobalBoard";
 import { ScreenHeader } from "../ui/ScreenHeader";
 import { levelMatch } from "./levelMatch";
 
-const WORLD_GRADIENTS: Record<string, string> = {
-  metro: "from-[#3aa0ff] to-[#1d4ed8]",
-  suburbs: "from-[#ff9a5c] to-[#c2417a]",
-  neon: "from-[#9d4edd] to-[#240046]",
-  frost: "from-[#9bd4ff] to-[#3f6fb5]",
-  beach: "from-[#2ee6c8] to-[#0e8fa8]",
-};
+const worldGradient = (theme: ThemeId) => ({ background: `linear-gradient(160deg, ${THEMES[theme].gradient[0]}, ${THEMES[theme].gradient[1]})` });
 
 function goalText(level: LevelDef) {
   if (level.mode === "solo") return `Swallow ${level.stars[0]}% of the city (${level.stars[1]}% ★★, ${level.stars[2]}% ★★★)`;
@@ -31,35 +25,38 @@ export default function LevelSelect() {
   const bestScores = useProfile((s) => s.bestScores);
   const startMatch = useApp((s) => s.startMatch);
   const unlocked = highestUnlockedLevel(levelStars);
-  const [world, setWorld] = useState(() => Math.floor((unlocked - 1) / LEVELS_PER_WORLD));
+  const [world, setWorld] = useState(() => Math.max(0, WORLDS.findIndex((w) => w.levels.some((l) => l.id === unlocked))));
   const [selected, setSelected] = useState<LevelDef | null>(null);
 
-  const themeId = THEME_ORDER[world];
-  const levels = LEVELS.slice(world * LEVELS_PER_WORLD, (world + 1) * LEVELS_PER_WORLD);
+  const { theme: themeId, levels } = WORLDS[world];
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-y-auto p-4 scrollbar-thin sm:p-8 short:gap-3 short:p-3">
       <ScreenHeader title="Levels" />
 
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
-        {THEME_ORDER.map((id, i) => {
-          const locked = i * LEVELS_PER_WORLD + 1 > unlocked;
+        {WORLDS.map(({ theme: id, levels: worldLevels }, i) => {
+          const locked = worldLevels[0].id > unlocked;
           return (
             <button
               key={id}
+              // The row scrolls sideways: bring the current world into view when the screen opens.
+              ref={world === i ? (el) => el?.scrollIntoView({ block: "nearest", inline: "center" }) : undefined}
               disabled={locked}
               onClick={() => setWorld(i)}
-              className={`shrink-0 cursor-pointer rounded-2xl bg-gradient-to-b px-4 py-2 font-display text-lg transition disabled:cursor-not-allowed disabled:opacity-40 ${WORLD_GRADIENTS[id]} ${world === i ? "ring-4 ring-white" : "opacity-80 hover:opacity-100"}`}
+              style={worldGradient(id)}
+              className={`shrink-0 cursor-pointer rounded-2xl px-4 py-2 font-display text-lg text-outline transition disabled:cursor-not-allowed disabled:opacity-40 ${world === i ? "ring-4 ring-inset ring-white" : "opacity-80 hover:opacity-100"}`}
             >
-              {locked ? "🔒 " : ""}
-              {i + 1}. {THEMES[id].name}
+              {locked ? "🔒" : THEMES[id].icon} {i + 1}. {THEMES[id].name}
             </button>
           );
         })}
       </div>
 
-      <div className={`rounded-3xl bg-gradient-to-br p-5 ${WORLD_GRADIENTS[themeId]} shadow-xl`}>
-        <h2 className="font-display text-3xl text-outline">{THEMES[themeId].name}</h2>
+      <div className="rounded-3xl p-5 shadow-xl" style={worldGradient(themeId)}>
+        <h2 className="font-display text-3xl text-outline">
+          {THEMES[themeId].icon} {THEMES[themeId].name}
+        </h2>
         <p className="font-bold text-white/85">{THEMES[themeId].tagline}</p>
       </div>
 

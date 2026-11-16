@@ -127,6 +127,11 @@ export class PowerUpLayer {
     this.tokens.delete(id);
   }
 
+  /** Builds one pickup so its shaders can be compiled ahead of time; the next `sync` removes it. */
+  warm() {
+    this.create({ id: -1, kind: "turbo", x: 0, z: 0, bornAt: 0 });
+  }
+
   sync(world: World, time: number) {
     for (const [id, token] of this.tokens) if (!world.powerUps.some((p) => p.id === id)) this.remove(id, token);
 

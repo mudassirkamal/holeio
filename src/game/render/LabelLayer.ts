@@ -46,7 +46,8 @@ export class LabelLayer {
     return label;
   }
 
-  sync(holes: readonly Hole[], visible: (hole: Hole) => boolean, camera: PerspectiveCamera, width: number, height: number, leaderId: number) {
+  /** `positions`: x, z pairs per hole id, where each hole is drawn this frame. */
+  sync(holes: readonly Hole[], positions: Float32Array, visible: (hole: Hole) => boolean, camera: PerspectiveCamera, width: number, height: number, leaderId: number) {
     for (const hole of holes) {
       const label = this.labels.get(hole.id) ?? this.create(hole);
       if (!visible(hole)) {
@@ -59,7 +60,7 @@ export class LabelLayer {
         label.colorKey = colorKey;
         label.root.style.setProperty("--label-color", hole.team >= 0 ? TEAMS[hole.team].color : SKIN_BY_ID[hole.skinId].colors[0]);
       }
-      projected.set(hole.x, 0, hole.z - hole.radius * 1.08).project(camera);
+      projected.set(positions[hole.id * 2], 0, positions[hole.id * 2 + 1] - hole.radius * 1.08).project(camera);
       if (projected.z > 1 || projected.x < -1.2 || projected.x > 1.2 || projected.y < -1.2 || projected.y > 1.2) {
         label.root.style.opacity = "0";
         continue;

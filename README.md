@@ -10,13 +10,21 @@ Developed by **Mudassir Kamal** — [mudassirkamal@proton.me](mailto:mudassirkam
 
 ## Features
 
-- **Five hand-styled worlds, generated procedurally**: Metro City, Sunset Suburbs,
-  Neon Nights, Frost Town and Palm Beach — roads with traffic that turns at
-  intersections, pedestrians, parks, plazas, parking lots, beaches and downtown towers.
-- **Themed city walls** around every map: a concrete hazard barrier in Metro City,
-  a white picket fence in the Suburbs, a glowing laser fence in Neon Nights, a snowy
-  log fence in Frost Town and a rope boardwalk fence in Palm Beach — each with corner
-  towers and flag or lamp posts. Holes stay inside the walls.
+- **16 hand-styled maps, generated procedurally**: Metro City, Sunset Suburbs, Neon
+  Nights, Frost Town, Palm Beach, Dune Oasis, Sakura Garden, Harbor Docks, Harvest
+  Valley, Candy Kingdom, Castle Town, Jungle Ruins, Sky Port, Fun Fair, Ember Ridge and
+  Moon Base — roads with traffic that turns at intersections, pedestrians, and each
+  map's own districts and landmarks to swallow: pyramids and oases, pagodas and torii
+  gates, cranes and container yards, barns and windmills, a giant birthday cake, a stone
+  keep, jungle temples, jumbo jets and runways, a Ferris wheel and circus tent, lava
+  pools and volcanoes, rockets and glass domes (65 new models, 110 in total).
+- **Long maps**: maps aren't all square. Harbor Docks, Sky Port, Dune Oasis, Harvest
+  Valley and Fun Fair are long strips, Jungle Ruins is tall; the fence, minimap, bots
+  and ground texture all follow the map's shape.
+- **Themed walls** around every map: concrete hazard barriers, white picket fences,
+  glowing laser fences, log fences (snowed in on Frost Town), rope boardwalk fences and
+  stone ramparts with battlements — each with corner towers and flag or lamp posts.
+  Holes stay inside the walls.
 - **Four modes**: Classic (biggest hole when time runs out, respawn when eaten),
   Battle Royale (no respawns, last hole standing), Solo (swallow a % of the city) and
   **Teams** — Red vs Blue from 2v2 to 6v6, where teammates can't eat each other and the
@@ -35,7 +43,8 @@ Developed by **Mudassir Kamal** — [mudassirkamal@proton.me](mailto:mudassirkam
   short video with sound, name tags, a caption and a watermark. Tap 🎬 to clip any
   moment yourself; share straight to WhatsApp, Instagram and co. from the results screen
   (or save the file).
-- **20 campaign levels** with 1–3 stars each, plus a fully configurable Quick Play.
+- **42 campaign levels** across all 16 maps with 1–3 stars each, plus a fully
+  configurable Quick Play.
 - **Daily Challenge and global leaderboards**: one city a day, the same for everyone
   (same seed, city, bots and power-ups), with a world ranking that resets at midnight
   UTC. Every campaign level has its own world board too. Your best scores are always
@@ -60,6 +69,27 @@ Developed by **Mudassir Kamal** — [mudassirkamal@proton.me](mailto:mudassirkam
   notches, a wider portrait camera, adaptive resolution that keeps the frame rate up,
   rendering capped for 120 Hz screens to save battery, and an installable app
   (Add to Home Screen) that launches full screen.
+
+## Performance
+
+The game is built to hold 60 fps on laptops with integrated graphics without turning
+effects off:
+
+- **Only what is in view is drawn.** Static objects are grouped into 56 m chunks per
+  model, so three.js frustum-culls whole chunks for both the camera and the shadow map;
+  cars and pedestrians are packed so only the ones near the camera are uploaded and
+  drawn. A frame draws 4–8× fewer triangles than drawing the whole city, and the cost
+  no longer grows with map size.
+- **Smooth motion on any display.** The simulation runs at a fixed 60 Hz; holes and the
+  camera are drawn interpolated between the last two steps, so 75/120/144 Hz screens
+  (and frames that don't line up with steps) don't judder.
+- **No mid-match hitches.** All shaders — including effects that first appear later
+  (shockwaves, power-ups, shields) — are compiled while the match loads.
+- **Adaptive, and it remembers.** If frames run slow, shadows are first redrawn at
+  ~30 Hz (invisible), then the render resolution steps down, quickly when far below
+  target. What it settles on is kept for the next match instead of being rediscovered.
+- Per-frame overhead trimmed: standings are computed once per step, layout is only
+  measured on resize, and the ground uses 8× anisotropic filtering.
 
 ## Getting started
 
@@ -213,7 +243,7 @@ src/
   components/           React UI: menus, level select, skin shop, HUD, results
   store/                Zustand stores (persisted profile, app/session state)
   game/
-    config/             Constants, object catalog, themes, levels, skins
+    config/             Constants, object catalog, themes (maps), levels, skins
     core/               Pure TS simulation: city generator, world, traffic,
                         spatial grid, value field, holes and falling physics
     ai/                 Bot brain, genome, skill profiles, trained brains, roster

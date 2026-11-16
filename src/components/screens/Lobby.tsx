@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { DIFFICULTY_INFO, MODE_INFO, type Difficulty } from "@/game/config/levels";
 import { POWER_UPS, POWER_UP_KINDS } from "@/game/config/powerUps";
 import { TEAMS, TEAM_SIZES } from "@/game/config/teams";
-import { THEMES, THEME_ORDER } from "@/game/config/themes";
+import { MapPicker } from "../ui/MapPicker";
 import { NET } from "@/game/net/config";
 import type { LobbyPlayer, RoomSettings } from "@/game/net/protocol";
 import { useNet } from "@/store/net";
@@ -184,16 +184,7 @@ export default function Lobby() {
               </Pill>
             ))}
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Pill value="random" current={s.themeId} disabled={locked} onSelect={(themeId) => set({ themeId })}>
-              🎲 Random city
-            </Pill>
-            {THEME_ORDER.map((t) => (
-              <Pill key={t} value={t} current={s.themeId} disabled={locked} onSelect={(themeId) => set({ themeId })}>
-                {THEMES[t].name}
-              </Pill>
-            ))}
-          </div>
+          <MapPicker value={s.themeId} onSelect={(themeId) => set({ themeId })} disabled={locked} allowRandom />
           <div className="flex flex-wrap gap-2">
             {[4, 5, 6, 7].map((b) => (
               <Pill key={b} value={b} current={s.blocksPerSide} disabled={locked} onSelect={(blocksPerSide) => set({ blocksPerSide })}>

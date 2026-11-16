@@ -6,6 +6,7 @@ import {
   NoToneMapping,
   Scene,
   SRGBColorSpace,
+  type Object3D,
   type WebGLRenderer,
 } from "three";
 import { KIND } from "../config/objectCatalog";
@@ -70,6 +71,11 @@ export class SceneView {
   private focusId: number | null;
   private demoSwitchTimer = 0;
   private trailBudget = 0;
+  /** Where each hole is drawn this frame (x, z pairs): between its last two simulated positions. */
+  private readonly drawn: Float32Array;
+  /** Minimum seconds between shadow map redraws; 0 redraws every frame. */
+  shadowInterval = 0;
+  private shadowAge = Infinity;
   closeUp = false;
 
   constructor(
@@ -96,9 +102,11 @@ export class SceneView {
     this.scene.add(this.objects.group);
     this.scenery = createScenery(world, this.theme, this.cityMaterial.material, q.shadows);
     this.scene.add(this.scenery.group);
-    this.border = createBorder(world.half, this.theme, this.cityMaterial.material, q.shadows);
+    this.border = createBorder(world.halfX, world.halfZ, this.theme, this.cityMaterial.material, q.shadows);
     this.scene.add(this.border.group);
 
+    this.drawn = new Float32Array(world.holes.length * 2);
+    world.holes.forEach((hole, i) => this.drawn.set([hole.x, hole.z], i * 2));
     this.holeViews = world.holes.map((hole) => {
       const view = new HoleView(hole.skinId);
       this.scene.add(view.group);
@@ -114,6 +122,23 @@ export class SceneView {
 
     const focus = this.focusHole();
     this.rig.snap(focus?.x ?? 0, focus?.z ?? 0, focus?.radius ?? 6);
+    this.compileShaders();
+  }
+
+  /**
+   * Compiles every shader while the match loads, including effects that only show up
+   * later (shockwaves, power-ups, shields), so the first kill or pickup doesn't stutter.
+   */
+  private compileShaders() {
+    const hidden: Object3D[] = [];
+    this.scene.traverse((object) => {
+      if (object.visible) return;
+      object.visible = true;
+      hidden.push(object);
+    });
+    this.powerUps.warm();
+    this.renderer.compile(this.scene, this.rig.camera);
+    for (const object of hidden) object.visible = false;
   }
 
   setFocus(holeId: number | null) {
@@ -219,12 +244,23 @@ export class SceneView {
     this.holeViews[holeId].setSkin(skinId);
   }
 
-  update(dt: number) {
+  update(dt: number, alpha = 1) {
     this.time += dt;
-    this.objects.sync(this.world);
+    // Movers are drawn a little beyond what the camera and the shadow map cover.
+    this.objects.sync(this.world, this.rig.target.x, this.rig.target.z, this.rig.viewRadius * 1.6 + 10);
 
     const holes = this.world.holes;
-    for (let i = 0; i < holes.length; i++) this.holeViews[i].update(holes[i], dt, this.time);
+    const drawn = this.drawn;
+    for (let i = 0; i < holes.length; i++) {
+      const hole = holes[i];
+      const dx = hole.x - hole.prevX;
+      const dz = hole.z - hole.prevZ;
+      // A respawn or a network correction is a jump, not a movement to blend.
+      const blend = Math.abs(dx) + Math.abs(dz) < 6 ? alpha : 1;
+      drawn[i * 2] = hole.prevX + dx * blend;
+      drawn[i * 2 + 1] = hole.prevZ + dz * blend;
+      this.holeViews[i].update(hole, drawn[i * 2], drawn[i * 2 + 1], dt, this.time);
+    }
     this.powerUps.sync(this.world, this.time);
 
     // Demo mode keeps the camera on the most interesting hole.
@@ -241,13 +277,21 @@ export class SceneView {
     const focus = this.focusHole();
     const fade = this.cityMaterial.uniforms;
     fade.uFocusRadius.value = focus?.alive ? focus.radius * 1.1 + 1 : 0;
-    if (focus) fade.uFocus.value.set(focus.x, 0.5, focus.z);
     if (focus) {
+      const fx = drawn[focus.id * 2];
+      const fz = drawn[focus.id * 2 + 1];
+      fade.uFocus.value.set(fx, 0.5, fz);
       const orbit = this.options.focusId === null ? (this.closeUp ? 0.25 : 0.04) : 0;
       const zoom = this.closeUp ? 0.45 : 1;
-      this.rig.update(dt, focus.x, focus.z, focus.vx, focus.vz, focus.radius, orbit, zoom);
+      this.rig.update(dt, fx, fz, focus.vx, focus.vz, focus.radius, orbit, zoom);
     }
-    this.env.follow(this.rig.target, this.rig.viewRadius, this.pixelRatio);
+    // The sun only moves when the shadow map is redrawn, or stale shadows would slide.
+    this.shadowAge += dt;
+    const redrawShadows = this.shadowAge >= this.shadowInterval;
+    if (redrawShadows) this.shadowAge = 0;
+    this.renderer.shadowMap.autoUpdate = false;
+    this.renderer.shadowMap.needsUpdate = redrawShadows;
+    this.env.follow(this.rig.target, this.rig.viewRadius, this.pixelRatio, redrawShadows);
     this.env.update(this.time, this.rig.camera.position);
 
     this.emitTrails(dt);
@@ -257,7 +301,7 @@ export class SceneView {
 
     if (this.labels) {
       const leader = this.world.standings()[0]?.hole.id ?? -1;
-      this.labels.sync(holes, (h) => this.holeViews[h.id].visible && !this.closeUp, this.rig.camera, this.width, this.height, leader);
+      this.labels.sync(holes, drawn, (h) => this.holeViews[h.id].visible && !this.closeUp, this.rig.camera, this.width, this.height, leader);
     }
   }
 

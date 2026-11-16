@@ -251,10 +251,11 @@ export class HoleView {
     return this.group.visible;
   }
 
-  update(hole: Hole, dt: number, time: number) {
+  /** `x`, `z`: where to draw the hole this frame (see SceneView.update). */
+  update(hole: Hole, x: number, z: number, dt: number, time: number) {
     this.phaseTime += dt;
     this.uniforms.uTime.value = time;
-    if (!hole.alive && (this.phase === "alive" || this.phase === "spawning")) this.onEaten(hole.x, hole.z);
+    if (!hole.alive && (this.phase === "alive" || this.phase === "spawning")) this.onEaten(x, z);
 
     switch (this.phase) {
       case "dying": {
@@ -282,7 +283,7 @@ export class HoleView {
         this.scale = 1;
         break;
     }
-    if (this.phase !== "dying") this.group.position.set(hole.x, 0, hole.z);
+    if (this.phase !== "dying") this.group.position.set(x, 0, z);
 
     const radius = Math.max(0.001, hole.radius * this.scale);
     this.group.visible = this.scale > 0.001;

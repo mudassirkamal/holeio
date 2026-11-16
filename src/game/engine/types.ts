@@ -67,6 +67,8 @@ export interface HudSnapshot {
   combo: number;
   leaderboard: LeaderboardRow[];
   minimap: MinimapDot[];
+  /** Map extents as fractions of the minimap square (long maps don't fill it). */
+  mapBounds: readonly [number, number];
   pickups: MinimapPickup[];
   powers: ActivePower[];
   teams: TeamStatus | null;

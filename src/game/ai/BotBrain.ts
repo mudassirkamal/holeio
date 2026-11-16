@@ -237,7 +237,7 @@ export class BotBrain implements HoleController {
         Math.max(HOLE.killMinimum, p.score * HOLE.killShare) + (world.mode === "battle" ? 120 : 0);
       let utility = (g.huntDrive * value) / (time + 1);
       // Prey pinned against a wall or corner has nowhere to run.
-      const wallGap = world.half - Math.max(Math.abs(p.x), Math.abs(p.z));
+      const wallGap = Math.min(world.halfX - Math.abs(p.x), world.halfZ - Math.abs(p.z));
       if (wallGap < 30) utility *= 1 + (1 - wallGap / 30) * 0.8;
       if (p.id === this.preyId) utility *= 1.3;
       // Revenge: hunt down whoever swallowed us last.
@@ -281,9 +281,8 @@ export class BotBrain implements HoleController {
 
     this.mode = "hunt";
     const lead = d < hole.radius * 1.5 ? 0.15 : g.interceptLead;
-    const limit = world.half;
-    const tx = clamp(prey.x + prey.vx * time * lead, -limit, limit);
-    const tz = clamp(prey.z + prey.vz * time * lead, -limit, limit);
+    const tx = clamp(prey.x + prey.vx * time * lead, -world.halfX, world.halfX);
+    const tz = clamp(prey.z + prey.vz * time * lead, -world.halfZ, world.halfZ);
     this.desired = Math.atan2(tz - hole.z, tx - hole.x);
   }
 
@@ -330,8 +329,9 @@ export class BotBrain implements HoleController {
     this.roamTimer -= interval;
     if (this.roamTimer <= 0) {
       this.roamTimer = this.rng.range(2, 4);
-      const h = world.half * 0.7;
-      this.roamAngle = Math.atan2(this.rng.range(-h, h) - hole.z, this.rng.range(-h, h) - hole.x);
+      const hx = world.halfX * 0.7;
+      const hz = world.halfZ * 0.7;
+      this.roamAngle = Math.atan2(this.rng.range(-hz, hz) - hole.z, this.rng.range(-hx, hx) - hole.x);
     }
     this.desired = this.roamAngle;
   }
@@ -389,13 +389,14 @@ export class BotBrain implements HoleController {
   }
 
   private edgeForce(world: World, hole: Hole, margin: number): [number, number] {
-    const h = world.half;
+    const hx = world.halfX;
+    const hz = world.halfZ;
     let ex = 0;
     let ez = 0;
-    if (hole.x < -h + margin) ex += (-h + margin - hole.x) / margin;
-    if (hole.x > h - margin) ex -= (hole.x - (h - margin)) / margin;
-    if (hole.z < -h + margin) ez += (-h + margin - hole.z) / margin;
-    if (hole.z > h - margin) ez -= (hole.z - (h - margin)) / margin;
+    if (hole.x < -hx + margin) ex += (-hx + margin - hole.x) / margin;
+    if (hole.x > hx - margin) ex -= (hole.x - (hx - margin)) / margin;
+    if (hole.z < -hz + margin) ez += (-hz + margin - hole.z) / margin;
+    if (hole.z > hz - margin) ez -= (hole.z - (hz - margin)) / margin;
     return [ex, ez];
   }
 

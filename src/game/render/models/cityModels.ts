@@ -3,61 +3,18 @@ import { KIND, type ObjectKindId } from "../../config/objectCatalog";
 import type { ThemeDef } from "../../config/themes";
 import { Surface } from "../materials/cityMaterial";
 import { ModelBuilder, type PartStyle } from "./ModelBuilder";
-
-const C = {
-  white: "#ffffff",
-  paint: "#ffffff",
-  metal: "#50555e",
-  darkMetal: "#2c3036",
-  rubber: "#1b1c1f",
-  glass: "#1d2a3a",
-  lightGlass: "#a9d6f5",
-  wood: "#9a6b3f",
-  trunk: "#7a5230",
-  stone: "#c3c7cc",
-  concrete: "#d9d6cf",
-  roofDark: "#3c4048",
-  roof: "#c4c8cf",
-  roofTrim: "#9aa1ab",
-  warmLight: "#ffe3a1",
-  headlight: "#fff8e0",
-  tailLight: "#ff2a2a",
-  red: "#d62828",
-  orange: "#ff7b00",
-  bronze: "#a07a45",
-  water: "#58c4f0",
-} as const;
-
-const SKIN_TONES = ["#f2c7a5", "#d9a066", "#8d5a3b"] as const;
-
-const paint = (shade: string = C.paint): PartStyle => ({ color: shade, tint: 1 });
-const solid = (color: string, extra: Partial<PartStyle> = {}): PartStyle => ({ color, ...extra });
-const glow = (color: string, strength = 1): PartStyle => ({ color, glow: strength });
-const glass = (color: string = C.glass): PartStyle => ({ color, surface: Surface.glass });
-const metal = (color: string = C.metal): PartStyle => ({ color, surface: Surface.metal });
-
-type Builder = (b: ModelBuilder, theme: ThemeDef, variant: number) => void;
+import { C, SKIN_TONES, glass, glow, metal, neonAccent, paint, solid, wheels, type Builder } from "./parts";
+import { WORLD_MODELS, WORLD_PALETTES, type WorldKindId } from "./worldModels";
 
 // -----------------------------------------------------------------------------
 // Shared pieces
 // -----------------------------------------------------------------------------
-
-function wheels(b: ModelBuilder, positions: [number, number][], radius: number, width: number) {
-  for (const [x, z] of positions) {
-    b.add(new CylinderGeometry(radius, radius, width, 12), solid(C.rubber), { x, y: radius, z, rx: Math.PI / 2 });
-    b.add(new CylinderGeometry(radius * 0.55, radius * 0.55, width + 0.02, 8), metal("#b9bec6"), { x, y: radius, z, rx: Math.PI / 2 });
-  }
-}
 
 function vehicleLights(b: ModelBuilder, halfLength: number, y: number, halfWidth: number) {
   for (const s of [-1, 1]) {
     b.box(0.06, 0.16, 0.36, glow(C.headlight, 1.2), { x: halfLength, y, z: s * halfWidth });
     b.box(0.06, 0.14, 0.4, glow(C.tailLight, 0.9), { x: -halfLength, y: y + 0.02, z: s * halfWidth });
   }
-}
-
-function neonAccent(theme: ThemeDef, variant: number) {
-  return theme.palette.accent[variant % theme.palette.accent.length];
 }
 
 /** Glowing corner strips and roof ring for the neon theme. */
@@ -97,7 +54,7 @@ function roofUnits(b: ModelBuilder, y: number, spread: number, count: number) {
 // Models
 // -----------------------------------------------------------------------------
 
-const MODELS: Record<ObjectKindId, Builder> = {
+const MODELS: Record<Exclude<ObjectKindId, WorldKindId>, Builder> = {
   cone: (b) => {
     b.box(0.5, 0.06, 0.5, solid(C.rubber));
     b.cone(0.22, 0.68, solid(C.orange), { y: 0.06 }, 12);
@@ -228,7 +185,7 @@ const MODELS: Record<ObjectKindId, Builder> = {
     b.blob(0.9, paint("#ececec"), { x: 0.1, y: 5.3, z: -0.2 }, 1);
   },
   pineTree: (b, theme) => {
-    const snowy = theme.id === "frost";
+    const snowy = theme.snowy === true;
     b.cylinder(0.2, 0.26, 1.4, solid(C.trunk), {}, 6);
     const tiers: [number, number, number][] = [[1.5, 2.9, 1.2], [1.2, 2.5, 2.8], [0.85, 2.2, 4.4], [0.5, 1.4, 6.1]];
     for (const [r, h, y] of tiers) {
@@ -415,7 +372,7 @@ const MODELS: Record<ObjectKindId, Builder> = {
     b.box(11.4, 0.12, 1.8, solid(accent), { y: 3.05, z: 5.6, rx: -0.28 });
     b.box(6.5, 1.0, 0.2, glow(accent, 1.4), { y: 4.0, z: 5.08 });
     roofUnits(b, 5.65, 3, 2);
-    if (theme.id === "neon") neonTrim(b, 12, 10, 0, 5.6, accent);
+    if (theme.neon === true) neonTrim(b, 12, 10, 0, 5.6, accent);
   },
   gasStation: (b, theme) => {
     const accent = neonAccent(theme, 0);
@@ -433,7 +390,7 @@ const MODELS: Record<ObjectKindId, Builder> = {
     b.box(1.6, 1.6, 0.25, glow(accent, 1.6), { x: 6.4, y: 4.3, z: -4.8 });
   },
   apartment: (b, theme, variant) => {
-    const neon = theme.id === "neon";
+    const neon = theme.neon === true;
     b.facade(14, 20.4, 13, { ...paint(), surface: Surface.windows });
     for (let floor = 1; floor < 6; floor++) {
       for (const x of [-4.5, 0, 4.5]) b.box(2.4, 0.16, 1.0, solid(C.concrete), { x, y: floor * 3.2 + 0.05, z: 6.95 });
@@ -446,7 +403,7 @@ const MODELS: Record<ObjectKindId, Builder> = {
     if (neon) neonTrim(b, 14, 13, 0, 21, neonAccent(theme, variant));
   },
   office: (b, theme, variant) => {
-    const neon = theme.id === "neon";
+    const neon = theme.neon === true;
     const style = variant % 2 === 0 ? Surface.curtain : Surface.windows;
     b.facade(15.5, 5, 15.5, { ...paint("#e8e8e8"), surface: Surface.storefront });
     b.facade(14.5, 29, 14.5, { ...paint(), surface: style }, { y: 5 });
@@ -456,7 +413,7 @@ const MODELS: Record<ObjectKindId, Builder> = {
     if (neon) neonTrim(b, 14.5, 14.5, 5, 29, neonAccent(theme, variant));
   },
   tower: (b, theme, variant) => {
-    const neon = theme.id === "neon";
+    const neon = theme.neon === true;
     const style = variant % 2 === 0 ? Surface.curtain : Surface.windows;
     b.facade(17, 6, 17, { ...paint("#e8e8e8"), surface: Surface.storefront });
     b.facade(16, 30, 16, { ...paint(), surface: style }, { y: 6 });
@@ -471,7 +428,7 @@ const MODELS: Record<ObjectKindId, Builder> = {
     }
   },
   skyscraper: (b, theme, variant) => {
-    const neon = theme.id === "neon";
+    const neon = theme.neon === true;
     b.facade(21, 7, 21, { ...paint("#e8e8e8"), surface: Surface.storefront });
     b.facade(19, 34, 19, { ...paint(), surface: Surface.curtain }, { y: 7 });
     b.facade(15, 22, 15, { ...paint(), surface: Surface.curtain }, { y: 41 });
@@ -495,6 +452,7 @@ export function variantCount(kind: ObjectKindId, theme: ThemeDef): number {
   switch (kind) {
     case "house":
     case "houseSmall":
+    case "timberHouse":
       return theme.palette.roofTints.length;
     case "person":
       return SKIN_TONES.length;
@@ -504,7 +462,7 @@ export function variantCount(kind: ObjectKindId, theme: ThemeDef): number {
     case "skyscraper":
     case "shop":
     case "kiosk":
-      return theme.id === "neon" ? 3 : 2;
+      return theme.neon === true ? 3 : 2;
     default:
       return 1;
   }
@@ -544,12 +502,13 @@ export function instancePalette(kind: ObjectKindId, theme: ThemeDef): readonly s
     case "bicycle":
       return p.accent;
     default:
-      return null;
+      return kind in WORLD_PALETTES ? p[WORLD_PALETTES[kind as WorldKindId]!] : null;
   }
 }
 
 export function buildKindModel(kind: ObjectKindId, theme: ThemeDef, variant: number): BufferGeometry {
   const builder = new ModelBuilder();
-  MODELS[kind](builder, theme, variant);
+  const build = kind in WORLD_MODELS ? WORLD_MODELS[kind as WorldKindId] : MODELS[kind as keyof typeof MODELS];
+  build(builder, theme, variant);
   return builder.build(KIND[kind].height);
 }

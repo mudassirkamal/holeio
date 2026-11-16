@@ -77,15 +77,54 @@ const WORLD_LEVELS: LevelSeed[] = [
   { name: "Tide Turners", theme: "beach", mode: "classic", duration: 120, bots: 9, difficulty: "insane", blocksPerSide: 6, seed: 502, stars: [4, 2, 1] },
   { name: "Resort Rumble", theme: "beach", mode: "battle", duration: 120, bots: 8, difficulty: "insane", blocksPerSide: 6, seed: 503, stars: [4, 2, 1] },
   { name: "King of the City", theme: "beach", mode: "classic", duration: 150, bots: 9, difficulty: "insane", blocksPerSide: 7, seed: 504, stars: [4, 2, 1] },
+  // World 6 — Dune Oasis
+  { name: "Sand Storm", theme: "desert", mode: "solo", duration: 120, bots: 0, difficulty: "normal", blocksPerSide: 5, seed: 601, stars: [14, 26, 38] },
+  { name: "Pharaoh's Feast", theme: "desert", mode: "classic", duration: 120, bots: 8, difficulty: "hard", blocksPerSide: 5, seed: 602, stars: [3, 2, 1] },
+  // World 7 — Sakura Garden
+  { name: "Petal Path", theme: "sakura", mode: "classic", duration: 120, bots: 7, difficulty: "normal", blocksPerSide: 5, seed: 701, stars: [3, 2, 1] },
+  { name: "Pagoda Duel", theme: "sakura", mode: "battle", duration: 120, bots: 8, difficulty: "hard", blocksPerSide: 5, seed: 702, stars: [3, 2, 1] },
+  // World 8 — Harbor Docks
+  { name: "Dock Shift", theme: "harbor", mode: "solo", duration: 120, bots: 0, difficulty: "normal", blocksPerSide: 5, seed: 801, stars: [22, 36, 50] },
+  { name: "Container Clash", theme: "harbor", mode: "classic", duration: 120, bots: 9, difficulty: "hard", blocksPerSide: 5, seed: 802, stars: [3, 2, 1] },
+  // World 9 — Harvest Valley
+  { name: "Harvest Time", theme: "farm", mode: "classic", duration: 120, bots: 7, difficulty: "normal", blocksPerSide: 5, seed: 901, stars: [3, 2, 1] },
+  { name: "Barn Burner", theme: "farm", mode: "battle", duration: 120, bots: 8, difficulty: "hard", blocksPerSide: 5, seed: 902, stars: [3, 2, 1] },
+  // World 10 — Candy Kingdom
+  { name: "Sugar Rush", theme: "candy", mode: "solo", duration: 120, bots: 0, difficulty: "normal", blocksPerSide: 5, seed: 1001, stars: [18, 32, 46] },
+  { name: "Cake Wars", theme: "candy", mode: "classic", duration: 120, bots: 9, difficulty: "hard", blocksPerSide: 6, seed: 1002, stars: [3, 2, 1] },
+  // World 11 — Castle Town
+  { name: "Market Day", theme: "castle", mode: "classic", duration: 120, bots: 8, difficulty: "hard", blocksPerSide: 5, seed: 1101, stars: [3, 2, 1] },
+  { name: "Siege", theme: "castle", mode: "battle", duration: 120, bots: 9, difficulty: "hard", blocksPerSide: 6, seed: 1102, stars: [3, 2, 1] },
+  // World 12 — Jungle Ruins
+  { name: "Lost Temple", theme: "jungle", mode: "solo", duration: 120, bots: 0, difficulty: "normal", blocksPerSide: 5, seed: 1201, stars: [12, 22, 34] },
+  { name: "Totem Hunt", theme: "jungle", mode: "classic", duration: 120, bots: 8, difficulty: "normal", blocksPerSide: 5, seed: 1202, stars: [3, 2, 1] },
+  // World 13 — Sky Port
+  { name: "Runway Run", theme: "airport", mode: "classic", duration: 120, bots: 8, difficulty: "hard", blocksPerSide: 5, seed: 1301, stars: [3, 2, 1] },
+  { name: "Final Call", theme: "airport", mode: "battle", duration: 120, bots: 9, difficulty: "insane", blocksPerSide: 5, seed: 1302, stars: [4, 2, 1] },
+  // World 14 — Fun Fair
+  { name: "Night Rides", theme: "fair", mode: "classic", duration: 120, bots: 9, difficulty: "hard", blocksPerSide: 5, seed: 1401, stars: [3, 2, 1] },
+  { name: "Big Top Brawl", theme: "fair", mode: "battle", duration: 120, bots: 9, difficulty: "insane", blocksPerSide: 5, seed: 1402, stars: [4, 2, 1] },
+  // World 15 — Ember Ridge
+  { name: "Hot Ground", theme: "volcano", mode: "solo", duration: 120, bots: 0, difficulty: "normal", blocksPerSide: 5, seed: 1501, stars: [18, 32, 46] },
+  { name: "Eruption", theme: "volcano", mode: "classic", duration: 120, bots: 9, difficulty: "insane", blocksPerSide: 5, seed: 1502, stars: [4, 2, 1] },
+  // World 16 — Moon Base
+  { name: "Low Gravity", theme: "moon", mode: "classic", duration: 120, bots: 8, difficulty: "hard", blocksPerSide: 5, seed: 1601, stars: [4, 2, 1] },
+  { name: "One Giant Bite", theme: "moon", mode: "classic", duration: 150, bots: 9, difficulty: "insane", blocksPerSide: 6, seed: 1602, stars: [4, 2, 1] },
 ];
 
 export const LEVELS: readonly LevelDef[] = WORLD_LEVELS.map((level, i) => ({
   ...level,
   id: i + 1,
-  reward: 60 + i * 20,
+  reward: 60 + Math.min(i, 24) * 20,
 }));
 
-export const LEVELS_PER_WORLD = 4;
+/** Campaign worlds in play order: consecutive levels that share a map. */
+export const WORLDS: readonly { theme: ThemeId; levels: readonly LevelDef[] }[] = LEVELS.reduce<{ theme: ThemeId; levels: LevelDef[] }[]>((worlds, level) => {
+  const last = worlds[worlds.length - 1];
+  if (last?.theme === level.theme) last.levels.push(level);
+  else worlds.push({ theme: level.theme, levels: [level] });
+  return worlds;
+}, []);
 
 /** Solo star marks used when a match isn't a campaign level (Quick Play). */
 export const DEFAULT_SOLO_STARS = [15, 30, 45] as const;

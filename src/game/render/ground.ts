@@ -72,21 +72,24 @@ interface Painter {
   ctx: CanvasRenderingContext2D;
   /** Pixels per meter. */
   ppm: number;
-  half: number;
+  /** Half extents of the painted area along X and Z (meters). */
+  halfX: number;
+  halfZ: number;
 }
 
-const px = (p: Painter, v: number) => (v + p.half) * p.ppm;
+const px = (p: Painter, x: number) => (x + p.halfX) * p.ppm;
+const pz = (p: Painter, z: number) => (z + p.halfZ) * p.ppm;
 const len = (p: Painter, v: number) => v * p.ppm;
 
 function fillRect(p: Painter, r: Rect, color: string) {
   p.ctx.fillStyle = color;
-  p.ctx.fillRect(px(p, r.x0), px(p, r.z0), len(p, r.x1 - r.x0), len(p, r.z1 - r.z0));
+  p.ctx.fillRect(px(p, r.x0), pz(p, r.z0), len(p, r.x1 - r.x0), len(p, r.z1 - r.z0));
 }
 
 function strokeRect(p: Painter, r: Rect, color: string, width: number) {
   p.ctx.strokeStyle = color;
   p.ctx.lineWidth = len(p, width);
-  p.ctx.strokeRect(px(p, r.x0), px(p, r.z0), len(p, r.x1 - r.x0), len(p, r.z1 - r.z0));
+  p.ctx.strokeRect(px(p, r.x0), pz(p, r.z0), len(p, r.x1 - r.x0), len(p, r.z1 - r.z0));
 }
 
 function tileLines(p: Painter, r: Rect, spacing: number, color: string, alpha: number) {
@@ -97,12 +100,12 @@ function tileLines(p: Painter, r: Rect, spacing: number, color: string, alpha: n
   ctx.lineWidth = Math.max(1, len(p, 0.06));
   ctx.beginPath();
   for (let x = r.x0; x <= r.x1; x += spacing) {
-    ctx.moveTo(px(p, x), px(p, r.z0));
-    ctx.lineTo(px(p, x), px(p, r.z1));
+    ctx.moveTo(px(p, x), pz(p, r.z0));
+    ctx.lineTo(px(p, x), pz(p, r.z1));
   }
   for (let z = r.z0; z <= r.z1; z += spacing) {
-    ctx.moveTo(px(p, r.x0), px(p, z));
-    ctx.lineTo(px(p, r.x1), px(p, z));
+    ctx.moveTo(px(p, r.x0), pz(p, z));
+    ctx.lineTo(px(p, r.x1), pz(p, z));
   }
   ctx.stroke();
   ctx.restore();
@@ -113,12 +116,13 @@ function paintRoads(p: Painter, layout: CityLayout, theme: ThemeDef) {
   const { roadWidth } = CITY;
   const hw = roadWidth / 2;
   const pal = theme.palette;
-  const h = layout.half;
+  const hx = layout.halfX;
+  const hz = layout.halfZ;
 
-  for (const x of layout.roadXs) fillRect(p, { x0: x - hw, x1: x + hw, z0: -h, z1: h }, pal.asphalt);
-  for (const z of layout.roadZs) fillRect(p, { x0: -h, x1: h, z0: z - hw, z1: z + hw }, pal.asphalt);
+  for (const x of layout.roadXs) fillRect(p, { x0: x - hw, x1: x + hw, z0: -hz, z1: hz }, pal.asphalt);
+  for (const z of layout.roadZs) fillRect(p, { x0: -hx, x1: hx, z0: z - hw, z1: z + hw }, pal.asphalt);
   // Curb along the city edge, where the perimeter fence stands.
-  strokeRect(p, { x0: -h - 0.3, z0: -h - 0.3, x1: h + 0.3, z1: h + 0.3 }, pal.curb, 0.6);
+  strokeRect(p, { x0: -hx - 0.3, z0: -hz - 0.3, x1: hx + 0.3, z1: hz + 0.3 }, pal.curb, 0.6);
 
   // Dashed center lines between intersections.
   ctx.save();
@@ -129,15 +133,15 @@ function paintRoads(p: Painter, layout: CityLayout, theme: ThemeDef) {
   for (let i = 0; i < layout.roadXs.length; i++) {
     for (let j = 0; j < layout.roadZs.length - 1; j++) {
       const x = layout.roadXs[i];
-      ctx.moveTo(px(p, x), px(p, layout.roadZs[j] + hw + 3));
-      ctx.lineTo(px(p, x), px(p, layout.roadZs[j + 1] - hw - 3));
+      ctx.moveTo(px(p, x), pz(p, layout.roadZs[j] + hw + 3));
+      ctx.lineTo(px(p, x), pz(p, layout.roadZs[j + 1] - hw - 3));
     }
   }
   for (let j = 0; j < layout.roadZs.length; j++) {
     for (let i = 0; i < layout.roadXs.length - 1; i++) {
       const z = layout.roadZs[j];
-      ctx.moveTo(px(p, layout.roadXs[i] + hw + 3), px(p, z));
-      ctx.lineTo(px(p, layout.roadXs[i + 1] - hw - 3), px(p, z));
+      ctx.moveTo(px(p, layout.roadXs[i] + hw + 3), pz(p, z));
+      ctx.lineTo(px(p, layout.roadXs[i + 1] - hw - 3), pz(p, z));
     }
   }
   ctx.stroke();
@@ -152,12 +156,12 @@ function paintRoads(p: Painter, layout: CityLayout, theme: ThemeDef) {
         // Crossings on the vertical road (north/south of the intersection).
         const cz = z + side * (hw + 1.4);
         for (let s = -hw + 0.6; s < hw - 0.4; s += stripe * 2) {
-          ctx.fillRect(px(p, x + s), px(p, cz - 1.1), len(p, stripe), len(p, 2.2));
+          ctx.fillRect(px(p, x + s), pz(p, cz - 1.1), len(p, stripe), len(p, 2.2));
         }
         // Crossings on the horizontal road (east/west).
         const cx = x + side * (hw + 1.4);
         for (let s = -hw + 0.6; s < hw - 0.4; s += stripe * 2) {
-          ctx.fillRect(px(p, cx - 1.1), px(p, z + s), len(p, 2.2), len(p, stripe));
+          ctx.fillRect(px(p, cx - 1.1), pz(p, z + s), len(p, 2.2), len(p, stripe));
         }
       }
     }
@@ -176,10 +180,14 @@ function paintBlock(p: Painter, block: CityLayout["blocks"][number], theme: Them
   switch (block.zone) {
     case "downtown":
     case "commercial":
+    case "market":
+    case "keep":
+    case "fairground":
     case "plaza": {
+      const open = block.zone === "plaza" || block.zone === "fairground";
       fillRect(p, inner, pal.plaza);
-      tileLines(p, inner, block.zone === "plaza" ? 2 : 3, pal.curb, 0.25);
-      if (block.zone === "plaza") {
+      tileLines(p, inner, block.zone === "keep" || block.zone === "market" ? 1.2 : open ? 2 : 3, pal.curb, 0.25);
+      if (open) {
         const cx = (inner.x0 + inner.x1) / 2;
         const cz = (inner.z0 + inner.z1) / 2;
         p.ctx.save();
@@ -188,13 +196,13 @@ function paintBlock(p: Painter, block: CityLayout["blocks"][number], theme: Them
         p.ctx.lineWidth = len(p, 0.4);
         for (const r of [5, 9.5]) {
           p.ctx.beginPath();
-          p.ctx.arc(px(p, cx), px(p, cz), len(p, r), 0, Math.PI * 2);
+          p.ctx.arc(px(p, cx), pz(p, cz), len(p, r), 0, Math.PI * 2);
           p.ctx.stroke();
         }
         p.ctx.restore();
       }
       // Planted strips add color to paved blocks.
-      if (block.zone !== "plaza") {
+      if (block.zone === "downtown" || block.zone === "commercial") {
         for (const lot of block.lots) {
           fillRect(p, { x0: lot.x0 - 0.6, x1: lot.x1 + 0.6, z0: lot.z0 - 0.6, z1: lot.z1 + 0.6 }, pal.curb);
         }
@@ -207,21 +215,23 @@ function paintBlock(p: Painter, block: CityLayout["blocks"][number], theme: Them
       p.ctx.save();
       p.ctx.globalAlpha = 0.35;
       p.ctx.fillStyle = pal.grassAlt;
-      for (let x = inner.x0; x < inner.x1; x += 3) p.ctx.fillRect(px(p, x), px(p, inner.z0), len(p, 1.5), len(p, inner.z1 - inner.z0));
+      for (let x = inner.x0; x < inner.x1; x += 3) p.ctx.fillRect(px(p, x), pz(p, inner.z0), len(p, 1.5), len(p, inner.z1 - inner.z0));
       p.ctx.restore();
       for (const lot of block.lots) {
         fillRect(p, { x0: lot.x0 - 0.4, x1: lot.x1 + 0.4, z0: lot.z0 - 0.4, z1: lot.z1 + 0.4 }, pal.dirt);
       }
       break;
     }
-    case "park": {
+    case "park":
+    case "garden":
+    case "ruins": {
       fillRect(p, inner, pal.grass);
       p.ctx.save();
       p.ctx.globalAlpha = 0.25;
       for (let i = 0; i < 30; i++) {
         p.ctx.fillStyle = rng.chance(0.5) ? pal.grassAlt : pal.grass;
         p.ctx.beginPath();
-        p.ctx.arc(px(p, rng.range(inner.x0, inner.x1)), px(p, rng.range(inner.z0, inner.z1)), len(p, rng.range(2, 6)), 0, Math.PI * 2);
+        p.ctx.arc(px(p, rng.range(inner.x0, inner.x1)), pz(p, rng.range(inner.z0, inner.z1)), len(p, rng.range(2, 6)), 0, Math.PI * 2);
         p.ctx.fill();
       }
       p.ctx.restore();
@@ -230,15 +240,15 @@ function paintBlock(p: Painter, block: CityLayout["blocks"][number], theme: Them
         p.ctx.lineCap = "round";
         p.ctx.lineWidth = len(p, path.width);
         p.ctx.beginPath();
-        p.ctx.moveTo(px(p, path.ax), px(p, path.az));
-        p.ctx.lineTo(px(p, path.bx), px(p, path.bz));
+        p.ctx.moveTo(px(p, path.ax), pz(p, path.az));
+        p.ctx.lineTo(px(p, path.bx), pz(p, path.bz));
         p.ctx.stroke();
       }
       const cx = (inner.x0 + inner.x1) / 2;
       const cz = (inner.z0 + inner.z1) / 2;
       p.ctx.fillStyle = pal.dirt;
       p.ctx.beginPath();
-      p.ctx.arc(px(p, cx), px(p, cz), len(p, 5.5), 0, Math.PI * 2);
+      p.ctx.arc(px(p, cx), pz(p, cz), len(p, 5.5), 0, Math.PI * 2);
       p.ctx.fill();
       break;
     }
@@ -251,45 +261,161 @@ function paintBlock(p: Painter, block: CityLayout["blocks"][number], theme: Them
       p.ctx.beginPath();
       for (let z = inner.z0 + 0.8 + 2.6; z < inner.z1 - 2; z += 6.5) {
         for (let x = inner.x0 + 0.8 + 0.4; x < inner.x1 - 0.8; x += 2.8) {
-          p.ctx.moveTo(px(p, x), px(p, z - 2.3));
-          p.ctx.lineTo(px(p, x), px(p, z + 2.3));
+          p.ctx.moveTo(px(p, x), pz(p, z - 2.3));
+          p.ctx.lineTo(px(p, x), pz(p, z + 2.3));
         }
       }
       p.ctx.stroke();
       p.ctx.restore();
       break;
     }
-    case "beach": {
+    case "beach":
+    case "dunes":
+    case "oasis": {
       fillRect(p, inner, pal.sand);
       p.ctx.save();
       p.ctx.globalAlpha = 0.18;
       for (let i = 0; i < 60; i++) {
         p.ctx.fillStyle = rng.chance(0.5) ? "#ffffff" : pal.dirt;
         p.ctx.beginPath();
-        p.ctx.arc(px(p, rng.range(inner.x0, inner.x1)), px(p, rng.range(inner.z0, inner.z1)), len(p, rng.range(0.6, 2.5)), 0, Math.PI * 2);
+        p.ctx.arc(px(p, rng.range(inner.x0, inner.x1)), pz(p, rng.range(inner.z0, inner.z1)), len(p, rng.range(0.6, 2.5)), 0, Math.PI * 2);
         p.ctx.fill();
       }
       p.ctx.restore();
       break;
     }
+    case "docks":
+    case "base": {
+      // Concrete slabs with painted lanes.
+      fillRect(p, inner, pal.plaza);
+      tileLines(p, inner, 4, pal.curb, 0.3);
+      p.ctx.save();
+      p.ctx.globalAlpha = 0.7;
+      p.ctx.fillStyle = pal.centerLine;
+      for (let z = inner.z0 + 3.4 + 6.4 * 2; z < inner.z1 - 3.2; z += 6.4 * 3) p.ctx.fillRect(px(p, inner.x0 + 1), pz(p, z - 0.12), len(p, inner.x1 - inner.x0 - 2), len(p, 0.24));
+      p.ctx.restore();
+      break;
+    }
+    case "farm": {
+      // Ploughed rows.
+      fillRect(p, inner, pal.dirt);
+      p.ctx.save();
+      p.ctx.globalAlpha = 0.5;
+      p.ctx.fillStyle = pal.grassAlt;
+      for (let z = inner.z0 + 0.7; z < inner.z1 - 1; z += 3.2) p.ctx.fillRect(px(p, inner.x0), pz(p, z), len(p, inner.x1 - inner.x0), len(p, 1.6));
+      p.ctx.restore();
+      for (const lot of block.lots) fillRect(p, { x0: lot.x0 - 1.5, x1: lot.x1 + 1.5, z0: lot.z0 - 1.5, z1: lot.z1 + 1.5 }, pal.sand);
+      break;
+    }
+    case "sweets": {
+      // Pastel checkerboard.
+      fillRect(p, inner, pal.plaza);
+      p.ctx.save();
+      p.ctx.globalAlpha = 0.3;
+      const tile = 3;
+      let row = 0;
+      for (let z = inner.z0; z < inner.z1; z += tile, row++) {
+        let col = row;
+        for (let x = inner.x0; x < inner.x1; x += tile, col++) {
+          if (col % 2) continue;
+          p.ctx.fillStyle = pal.accent[(row + col) % pal.accent.length];
+          p.ctx.fillRect(px(p, x), pz(p, z), len(p, Math.min(tile, inner.x1 - x)), len(p, Math.min(tile, inner.z1 - z)));
+        }
+      }
+      p.ctx.restore();
+      break;
+    }
+    case "lava": {
+      // Scorched rock with glowing cracks.
+      fillRect(p, inner, pal.dirt);
+      p.ctx.save();
+      p.ctx.lineCap = "round";
+      for (let i = 0; i < 26; i++) {
+        let x = rng.range(inner.x0 + 1, inner.x1 - 1);
+        let z = rng.range(inner.z0 + 1, inner.z1 - 1);
+        p.ctx.strokeStyle = i % 3 ? pal.grassAlt : pal.water;
+        p.ctx.globalAlpha = i % 3 ? 0.6 : 0.75;
+        p.ctx.lineWidth = len(p, i % 3 ? 0.5 : 0.22);
+        p.ctx.beginPath();
+        p.ctx.moveTo(px(p, x), pz(p, z));
+        for (let k = 0; k < 4; k++) {
+          x = Math.min(inner.x1, Math.max(inner.x0, x + rng.range(-4, 4)));
+          z = Math.min(inner.z1, Math.max(inner.z0, z + rng.range(-4, 4)));
+          p.ctx.lineTo(px(p, x), pz(p, z));
+        }
+        p.ctx.stroke();
+      }
+      p.ctx.restore();
+      break;
+    }
+    case "airfield": {
+      fillRect(p, inner, pal.plaza);
+      tileLines(p, inner, 6, pal.curb, 0.3);
+      for (const path of block.paths) {
+        const alongX = path.az === path.bz;
+        const half = path.width / 2;
+        fillRect(p, alongX ? { x0: path.ax, x1: path.bx, z0: path.az - half, z1: path.az + half } : { x0: path.ax - half, x1: path.ax + half, z0: path.az, z1: path.bz }, pal.asphalt);
+        p.ctx.fillStyle = pal.laneLine;
+        const length = alongX ? path.bx - path.ax : path.bz - path.az;
+        // Center dashes, then threshold "piano keys" at both ends.
+        for (let s = 9; s < length - 9; s += 7) {
+          if (alongX) p.ctx.fillRect(px(p, path.ax + s), pz(p, path.az - 0.2), len(p, 3.6), len(p, 0.4));
+          else p.ctx.fillRect(px(p, path.ax - 0.2), pz(p, path.az + s), len(p, 0.4), len(p, 3.6));
+        }
+        for (const end of [1.5, length - 5.5]) {
+          for (let o = -half + 0.8; o < half - 0.8; o += 1.3) {
+            if (alongX) p.ctx.fillRect(px(p, path.ax + end), pz(p, path.az + o), len(p, 4), len(p, 0.6));
+            else p.ctx.fillRect(px(p, path.ax + o), pz(p, path.az + end), len(p, 0.6), len(p, 4));
+          }
+        }
+      }
+      break;
+    }
+  }
+
+  // Ponds, oasis water and lava pools.
+  const lava = block.zone === "lava";
+  for (const pool of block.pools) {
+    const { ctx } = p;
+    const cx = px(p, pool.x);
+    const cz = pz(p, pool.z);
+    ctx.fillStyle = lava ? "#1c1513" : pal.dirt;
+    ctx.beginPath();
+    ctx.arc(cx, cz, len(p, pool.r + 0.6), 0, Math.PI * 2);
+    ctx.fill();
+    const g = ctx.createRadialGradient(cx, cz, 0, cx, cz, len(p, pool.r));
+    g.addColorStop(0, lava ? "#ffd23f" : "#ffffff");
+    g.addColorStop(lava ? 0.45 : 0.08, pal.water);
+    g.addColorStop(1, pal.water);
+    ctx.save();
+    ctx.fillStyle = pal.water;
+    ctx.beginPath();
+    ctx.arc(cx, cz, len(p, pool.r), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = lava ? 0.9 : 0.25;
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.restore();
   }
 }
 
-function paintDetail(p: Painter, size: number) {
+function paintDetail(p: Painter) {
   const { ctx } = p;
   const tile = noiseTile(128, 42);
   ctx.save();
   ctx.globalCompositeOperation = "overlay";
   ctx.globalAlpha = 0.35;
   ctx.fillStyle = ctx.createPattern(tile, "repeat")!;
-  ctx.fillRect(0, 0, size, size);
+  ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   ctx.restore();
 }
 
-function paintLightPools(layout: CityLayout, size: number, ppm: number, warm: string) {
+function paintLightPools(layout: CityLayout, p: Painter, warm: string) {
   const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = Math.max(256, size / 4);
-  const scale = canvas.width / size;
+  const scale = 0.25;
+  const ppm = p.ppm;
+  canvas.width = Math.ceil(p.ctx.canvas.width * scale);
+  canvas.height = Math.ceil(p.ctx.canvas.height * scale);
   const ctx = canvas.getContext("2d")!;
   ctx.fillStyle = "#000000";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -300,8 +426,8 @@ function paintLightPools(layout: CityLayout, size: number, ppm: number, warm: st
     if (o.kind !== "lampPost") continue;
     const ox = o.x + Math.sin(o.rotY) * 1.2;
     const oz = o.z + Math.cos(o.rotY) * 1.2;
-    const cx = (ox + layout.half) * ppm * scale;
-    const cz = (oz + layout.half) * ppm * scale;
+    const cx = px(p, ox) * scale;
+    const cz = pz(p, oz) * scale;
     const r = 9 * ppm * scale;
     const g = ctx.createRadialGradient(cx, cz, 0, cx, cz, r);
     g.addColorStop(0, `rgba(${rgb},0.55)`);
@@ -309,6 +435,21 @@ function paintLightPools(layout: CityLayout, size: number, ppm: number, warm: st
     g.addColorStop(1, `rgba(${rgb},0)`);
     ctx.fillStyle = g;
     ctx.fillRect(cx - r, cz - r, r * 2, r * 2);
+  }
+  // Lava lights up the ground around it.
+  for (const block of layout.blocks) {
+    if (block.zone !== "lava") continue;
+    for (const pool of block.pools) {
+      const cx = px(p, pool.x) * scale;
+      const cz = pz(p, pool.z) * scale;
+      const r = (pool.r + 5) * ppm * scale;
+      const g = ctx.createRadialGradient(cx, cz, 0, cx, cz, r);
+      g.addColorStop(0, "rgba(255,140,40,1)");
+      g.addColorStop(pool.r / (pool.r + 5), "rgba(255,90,31,0.85)");
+      g.addColorStop(1, "rgba(255,90,31,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(cx - r, cz - r, r * 2, r * 2);
+    }
   }
   return canvas;
 }
@@ -322,31 +463,37 @@ export interface GroundOptions {
 export function createGround(layout: CityLayout, theme: ThemeDef, options: GroundOptions) {
   const group = new Group();
   group.name = "ground";
-  const size = options.textureSize;
-  const cityExtent = layout.half * 2 + 24;
+  const extentX = layout.halfX * 2 + 24;
+  const extentZ = layout.halfZ * 2 + 24;
+  // Long maps get a long texture with the same pixel budget, so the ground stays as sharp.
+  const maxSide = Math.min(options.renderer.capabilities.maxTextureSize, options.textureSize * 2);
+  const ppm = Math.min(options.textureSize / Math.sqrt(extentX * extentZ), maxSide / Math.max(extentX, extentZ));
   const painter: Painter = {
     ctx: document.createElement("canvas").getContext("2d")!,
-    ppm: size / cityExtent,
-    half: cityExtent / 2,
+    ppm,
+    halfX: extentX / 2,
+    halfZ: extentZ / 2,
   };
   const canvas = painter.ctx.canvas;
-  canvas.width = canvas.height = size;
+  canvas.width = Math.round(extentX * ppm);
+  canvas.height = Math.round(extentZ * ppm);
 
   const pal = theme.palette;
   painter.ctx.fillStyle = theme.outer === "water" ? pal.sand : pal.outer;
-  painter.ctx.fillRect(0, 0, size, size);
+  painter.ctx.fillRect(0, 0, canvas.width, canvas.height);
   const rng = new Rng(layout.objects.length * 13 + 5);
   paintRoads(painter, layout, theme);
   for (const block of layout.blocks) paintBlock(painter, block, theme, rng);
-  paintDetail(painter, size);
+  paintDetail(painter);
 
   const map = new CanvasTexture(canvas);
   map.colorSpace = SRGBColorSpace;
-  map.anisotropy = options.renderer.capabilities.getMaxAnisotropy();
+  // 8x is indistinguishable from 16x at this camera angle and much cheaper on laptop GPUs.
+  map.anisotropy = Math.min(8, options.renderer.capabilities.getMaxAnisotropy());
 
   const material = new MeshStandardMaterial({ map, roughness: 0.92, metalness: 0 });
   if (theme.lighting.night > 0.5) {
-    const pools = new CanvasTexture(paintLightPools(layout, size, painter.ppm, "#ffcf87"));
+    const pools = new CanvasTexture(paintLightPools(layout, painter, "#ffcf87"));
     pools.colorSpace = SRGBColorSpace;
     material.emissiveMap = pools;
     material.emissive = new Color("#ffffff");
@@ -354,7 +501,7 @@ export function createGround(layout: CityLayout, theme: ThemeDef, options: Groun
   }
   applyHoleStencil(material);
 
-  const city = new Mesh(new PlaneGeometry(cityExtent, cityExtent), material);
+  const city = new Mesh(new PlaneGeometry(extentX, extentZ), material);
   city.rotation.x = -Math.PI / 2;
   city.receiveShadow = true;
   city.renderOrder = 1;
@@ -383,7 +530,7 @@ export function createGround(layout: CityLayout, theme: ThemeDef, options: Groun
     // Sandy shore ring between the city and the sea.
     const shoreMat = new MeshStandardMaterial({ color: pal.sand, roughness: 1 });
     applyHoleStencil(shoreMat);
-    const shore = new Mesh(new PlaneGeometry(cityExtent + 70, cityExtent + 70), shoreMat);
+    const shore = new Mesh(new PlaneGeometry(extentX + 70, extentZ + 70), shoreMat);
     shore.rotation.x = -Math.PI / 2;
     shore.position.y = -0.1;
     shore.receiveShadow = true;

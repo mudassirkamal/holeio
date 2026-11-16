@@ -4,9 +4,10 @@ import { useState } from "react";
 import { DIFFICULTY_INFO, MODE_INFO, type Difficulty, type GameMode } from "@/game/config/levels";
 import { POWER_UPS, POWER_UP_KINDS } from "@/game/config/powerUps";
 import { TEAMS, TEAM_SIZES } from "@/game/config/teams";
-import { THEMES, THEME_ORDER, type ThemeId } from "@/game/config/themes";
+import type { ThemeId } from "@/game/config/themes";
 import { useApp } from "@/store/app";
 import { Button } from "../ui/Button";
+import { MapPicker } from "../ui/MapPicker";
 import { ScreenHeader } from "../ui/ScreenHeader";
 
 const MAP_SIZES = [
@@ -66,14 +67,8 @@ export default function QuickPlay() {
           </div>
         </section>
         <section className="panel rounded-3xl p-5">
-          <h2 className="mb-3 font-display text-2xl">City</h2>
-          <div className="grid grid-cols-2 gap-2">
-            {THEME_ORDER.map((t) => (
-              <Choice key={t} value={t} current={theme} onSelect={setTheme}>
-                <div className="font-display text-lg">{THEMES[t].name}</div>
-              </Choice>
-            ))}
-          </div>
+          <h2 className="mb-3 font-display text-2xl">Map</h2>
+          <MapPicker value={theme} onSelect={setTheme} />
           <h2 className="mb-3 mt-5 font-display text-2xl">Map size</h2>
           <div className="grid grid-cols-4 gap-2">
             {MAP_SIZES.map((s) => (

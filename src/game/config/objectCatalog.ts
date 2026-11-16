@@ -61,6 +61,87 @@ const SPECS = {
   office: { width: 15.5, depth: 15.5, height: 36, value: 420 },
   tower: { width: 17, depth: 17, height: 56, value: 720 },
   skyscraper: { width: 21, depth: 21, height: 82, value: 1150 },
+
+  // --- Landmarks of the themed worlds (models in render/models/worldModels.ts) ---
+  // Shared
+  well: { width: 2.2, depth: 2.2, height: 2.7, value: 10 },
+  barrel: { width: 0.8, depth: 0.8, height: 1, value: 1 },
+  foodStall: { width: 3.2, depth: 2.4, height: 3, value: 14 },
+  // Dune Oasis
+  tent: { width: 4, depth: 4, height: 3, value: 14 },
+  camel: { width: 2.4, depth: 0.9, height: 2.3, value: 8 },
+  adobeHouse: { width: 9, depth: 8, height: 5.2, value: 65 },
+  pyramid: { width: 22, depth: 22, height: 15, value: 520 },
+  // Sakura Garden
+  stoneLantern: { width: 0.9, depth: 0.9, height: 1.9, value: 4 },
+  torii: { width: 6, depth: 1.2, height: 5.5, value: 26 },
+  teaHouse: { width: 10, depth: 8, height: 6.2, value: 80 },
+  pagoda: { width: 12, depth: 12, height: 25, value: 320 },
+  // Harbor Docks
+  forklift: { width: 2.6, depth: 1.3, height: 2.2, value: 9 },
+  container: { width: 6.1, depth: 2.5, height: 2.6, value: 22 },
+  containerStack: { width: 6.2, depth: 5.2, height: 5.3, value: 80 },
+  boat: { width: 7, depth: 2.6, height: 3.4, value: 30 },
+  warehouse: { width: 18, depth: 13, height: 8, value: 190 },
+  lighthouse: { width: 6, depth: 6, height: 24, value: 260 },
+  crane: { width: 9, depth: 9, height: 30, value: 380 },
+  // Harvest Valley
+  pumpkin: { width: 0.8, depth: 0.8, height: 0.6, value: 1 },
+  hayBale: { width: 1.6, depth: 1.5, height: 1.5, value: 3 },
+  scarecrow: { width: 1.5, depth: 0.5, height: 2.3, value: 4 },
+  cow: { width: 2.2, depth: 0.8, height: 1.5, value: 6 },
+  tractor: { width: 3.6, depth: 2, height: 2.5, value: 16 },
+  silo: { width: 4.5, depth: 4.5, height: 13, value: 85 },
+  barn: { width: 13, depth: 10, height: 9.5, value: 130 },
+  windmill: { width: 6, depth: 6, height: 17, value: 150 },
+  // Candy Kingdom
+  candyCane: { width: 0.9, depth: 0.4, height: 2.6, value: 3 },
+  lollipop: { width: 1.6, depth: 0.5, height: 3.6, value: 5 },
+  iceCreamCone: { width: 2.4, depth: 2.4, height: 5, value: 16 },
+  donut: { width: 4.2, depth: 1.4, height: 4.2, value: 22 },
+  cupcake: { width: 5, depth: 5, height: 5.5, value: 40 },
+  gingerbreadHouse: { width: 9, depth: 8, height: 8, value: 75 },
+  cakeTower: { width: 12, depth: 12, height: 20, value: 280 },
+  // Ember Ridge
+  lavaRock: { width: 2.6, depth: 2.2, height: 1.8, value: 6 },
+  obsidianSpire: { width: 3, depth: 3, height: 9, value: 30 },
+  bunker: { width: 9, depth: 8, height: 4.5, value: 70 },
+  drillRig: { width: 6, depth: 6, height: 16, value: 140 },
+  miniVolcano: { width: 14, depth: 14, height: 9, value: 260 },
+  // Fun Fair
+  balloonCart: { width: 1.4, depth: 1, height: 3.2, value: 5 },
+  carousel: { width: 9, depth: 9, height: 7, value: 110 },
+  dropTower: { width: 4, depth: 4, height: 26, value: 190 },
+  circusTent: { width: 14, depth: 14, height: 11, value: 220 },
+  ferrisWheel: { width: 17, depth: 5, height: 19, value: 340 },
+  // Sky Port
+  luggageCart: { width: 3, depth: 1.4, height: 1.4, value: 7 },
+  radar: { width: 4, depth: 4, height: 7, value: 40 },
+  smallPlane: { width: 9, depth: 10, height: 3, value: 48 },
+  helicopter: { width: 9, depth: 3, height: 3.6, value: 58 },
+  hangar: { width: 22, depth: 18, height: 10, value: 300 },
+  controlTower: { width: 7, depth: 7, height: 28, value: 340 },
+  airliner: { width: 26, depth: 24, height: 7.5, value: 540 },
+  // Moon Base
+  solarPanel: { width: 4, depth: 1.2, height: 2.4, value: 9 },
+  rover: { width: 3.2, depth: 2, height: 1.8, value: 12 },
+  satDish: { width: 5, depth: 5, height: 6, value: 45 },
+  habModule: { width: 10, depth: 4, height: 4, value: 62 },
+  dome: { width: 12, depth: 12, height: 6.5, value: 160 },
+  rocket: { width: 5, depth: 5, height: 26, value: 320 },
+  // Jungle Ruins
+  ruinPillar: { width: 1.4, depth: 1.4, height: 4.5, value: 7 },
+  totem: { width: 1.2, depth: 1.2, height: 5, value: 9 },
+  jungleTree: { width: 5, depth: 5, height: 11, value: 16, requiredRadius: 1.8 },
+  stoneHead: { width: 3.5, depth: 3.5, height: 4.5, value: 30 },
+  hut: { width: 6, depth: 6, height: 5, value: 38 },
+  temple: { width: 20, depth: 20, height: 14, value: 500 },
+  // Castle Town
+  cart: { width: 2.8, depth: 1.4, height: 1.5, value: 6 },
+  timberHouse: { width: 9, depth: 8, height: 10, value: 92 },
+  watchTower: { width: 6, depth: 6, height: 16, value: 150 },
+  chapel: { width: 10, depth: 14, height: 18, value: 215 },
+  castleKeep: { width: 20, depth: 20, height: 26, value: 660 },
 } satisfies Record<string, KindSpec>;
 
 export type ObjectKindId = keyof typeof SPECS;

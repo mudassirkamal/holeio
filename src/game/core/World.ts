@@ -56,6 +56,9 @@ const LEAN_BLOCKED = 0.045;
 
 export class World {
   readonly layout: CityLayout;
+  /** Half extents of the map; `half` is the larger one (grids are square). */
+  readonly halfX: number;
+  readonly halfZ: number;
   readonly half: number;
   readonly mode: GameMode;
   readonly duration: number;
@@ -80,6 +83,7 @@ export class World {
   private readonly falling: CityObject[] = [];
   private readonly leaning: CityObject[] = [];
   private dirty: CityObject[] = [];
+  private standingsCache: Standing[] | null = null;
   private readonly powerUpsEnabled: boolean;
   private nextPowerUpAt: number = POWER_UP_RULES.firstSpawn;
   private nextPowerUpId = 0;
@@ -91,6 +95,8 @@ export class World {
     this.replica = setup.replica ?? false;
     this.powerUpsEnabled = setup.powerUps ?? false;
     this.layout = generateCity(setup.themeId, setup.blocksPerSide, setup.seed);
+    this.halfX = this.layout.halfX;
+    this.halfZ = this.layout.halfZ;
     this.half = this.layout.half;
     this.grid = new SpatialGrid(this.half, CITY.cellSize);
     this.valueField = new ValueField(this.half, CITY.valueCellSize);
@@ -143,11 +149,12 @@ export class World {
 
   /** Picks a spawn point away from bigger holes. */
   private placeHole(hole: Hole) {
-    const margin = this.half * 0.85;
+    const marginX = this.halfX * 0.85;
+    const marginZ = this.halfZ * 0.85;
     let best = { x: 0, z: 0, score: -Infinity };
     for (let i = 0; i < 28; i++) {
-      const x = this.rng.range(-margin, margin);
-      const z = this.rng.range(-margin, margin);
+      const x = this.rng.range(-marginX, marginX);
+      const z = this.rng.range(-marginZ, marginZ);
       let score = Infinity;
       for (const other of this.holes) {
         if (other === hole || !other.alive) continue;
@@ -170,6 +177,7 @@ export class World {
   // ---------------------------------------------------------------------------
 
   step(dt: number) {
+    this.standingsCache = null;
     if (this.finished) return;
     if (this.replica) {
       this.stepReplica(dt);
@@ -241,13 +249,15 @@ export class World {
     hole.z += hole.vz * dt;
 
     // Keep the whole rim inside the perimeter fence.
-    const limit = Math.max(0, Math.min(this.half, this.half + CITY.borderOffset - hole.radius * 1.05));
-    if (hole.x < -limit || hole.x > limit) {
-      hole.x = clamp(hole.x, -limit, limit);
+    const inset = CITY.borderOffset - hole.radius * 1.05;
+    const limitX = Math.max(0, Math.min(this.halfX, this.halfX + inset));
+    const limitZ = Math.max(0, Math.min(this.halfZ, this.halfZ + inset));
+    if (hole.x < -limitX || hole.x > limitX) {
+      hole.x = clamp(hole.x, -limitX, limitX);
       hole.vx = 0;
     }
-    if (hole.z < -limit || hole.z > limit) {
-      hole.z = clamp(hole.z, -limit, limit);
+    if (hole.z < -limitZ || hole.z > limitZ) {
+      hole.z = clamp(hole.z, -limitZ, limitZ);
       hole.vz = 0;
     }
   }
@@ -563,11 +573,12 @@ export class World {
 
   /** Drops a pickup in open space, away from holes and other pickups: worth a detour. */
   private spawnPowerUp() {
-    const margin = this.half * 0.85;
+    const marginX = this.halfX * 0.85;
+    const marginZ = this.halfZ * 0.85;
     let best = { x: 0, z: 0, score: -Infinity };
     for (let i = 0; i < 12; i++) {
-      const x = this.rng.range(-margin, margin);
-      const z = this.rng.range(-margin, margin);
+      const x = this.rng.range(-marginX, marginX);
+      const z = this.rng.range(-marginZ, marginZ);
       let score = Infinity;
       for (const h of this.holes) if (h.alive) score = Math.min(score, Math.hypot(h.x - x, h.z - z) - h.radius);
       for (const p of this.powerUps) score = Math.min(score, Math.hypot(p.x - x, p.z - z));
@@ -644,7 +655,17 @@ export class World {
   // ---------------------------------------------------------------------------
 
   /** Current leaderboard. In battle mode survivors always rank above eliminated holes. */
-  standings(): Standing[] {
+  /** Holes by rank. Computed once per step: the HUD, camera and labels all ask for it. */
+  standings(): readonly Standing[] {
+    return (this.standingsCache ??= this.computeStandings());
+  }
+
+  /** Call after changing scores outside `step` (final stats from the host). */
+  invalidateStandings() {
+    this.standingsCache = null;
+  }
+
+  private computeStandings(): Standing[] {
     const sorted = [...this.holes].sort((a, b) => {
       if (this.mode === "battle" && a.eliminated !== b.eliminated) return a.eliminated ? 1 : -1;
       if (this.mode === "battle" && a.eliminated && b.eliminated) return b.eliminatedAt - a.eliminatedAt;

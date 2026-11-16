@@ -1,6 +1,7 @@
 import { Color, CylinderGeometry, Group, InstancedMesh, Matrix4, Quaternion, Vector3, type Material } from "three";
+import { chunkOf, enableCulling } from "./chunks";
 import { CITY } from "../config/constants";
-import type { ThemeDef, ThemeId } from "../config/themes";
+import type { BorderStyleId, ThemeDef } from "../config/themes";
 import { Surface } from "./materials/cityMaterial";
 import { ModelBuilder, type PartStyle } from "./models/ModelBuilder";
 
@@ -14,9 +15,9 @@ interface BorderStyle {
   /** Approximate segment length; the exact length is fitted to the map. */
   segment: number;
   segmentHeight: number;
-  buildSegment: (b: ModelBuilder, length: number) => void;
+  buildSegment: (b: ModelBuilder, length: number, theme: ThemeDef) => void;
   towerHeight: number;
-  buildTower: (b: ModelBuilder) => void;
+  buildTower: (b: ModelBuilder, theme: ThemeDef) => void;
   postHeight: number;
   buildPost: (b: ModelBuilder) => void;
   /** Place a post every N segments. */
@@ -37,9 +38,9 @@ function span(b: ModelBuilder, x0: number, y0: number, x1: number, y1: number, r
   b.add(new CylinderGeometry(radius, radius, length, 7), style, { x: (x0 + x1) / 2, y: (y0 + y1) / 2, z, rz: angle - Math.PI / 2 });
 }
 
-const STYLES: Record<ThemeId, BorderStyle> = {
+const STYLES: Record<BorderStyleId, BorderStyle> = {
   // Concrete barrier with hazard stripes, steel railing and amber post lights.
-  metro: {
+  barrier: {
     segment: 4,
     segmentHeight: 1.75,
     buildSegment: (b, len) => {
@@ -74,7 +75,7 @@ const STYLES: Record<ThemeId, BorderStyle> = {
   },
 
   // White picket fence between brick pillars.
-  suburbs: {
+  picket: {
     segment: 3.6,
     segmentHeight: 1.45,
     buildSegment: (b, len) => {
@@ -110,7 +111,7 @@ const STYLES: Record<ThemeId, BorderStyle> = {
   },
 
   // Laser fence: dark pylons with glowing light bars.
-  neon: {
+  laser: {
     segment: 4.2,
     segmentHeight: 1.95,
     buildSegment: (b, len) => {
@@ -136,24 +137,24 @@ const STYLES: Record<ThemeId, BorderStyle> = {
     palette: (t) => t.palette.accent,
   },
 
-  // Rustic log fence buried in snow banks.
-  frost: {
+  // Rustic log fence (buried in snow banks on snowy maps).
+  logs: {
     segment: 3.4,
     segmentHeight: 1.62,
-    buildSegment: (b, len) => {
-      b.box(len, 0.22, 0.9, solid("#eef4fb"));
+    buildSegment: (b, len, theme) => {
+      b.box(len, 0.22, 0.9, solid(theme.snowy ? "#eef4fb" : theme.palette.dirt));
       b.cylinder(0.2, 0.23, 1.45, solid("#7a5230"), { x: -len / 2 }, 7);
-      b.blob(0.26, solid("#f7fbff"), { x: -len / 2, y: 1.5, sy: 0.55 }, 1);
+      b.blob(0.26, solid(theme.snowy ? "#f7fbff" : "#6b4226"), { x: -len / 2, y: 1.5, sy: 0.55 }, 1);
       span(b, -len / 2, 0.45, len / 2, 0.45, 0.14, solid("#8b5e3c"));
       span(b, -len / 2, 0.98, len / 2, 0.98, 0.14, solid("#8b5e3c"));
-      b.box(len, 0.08, 0.22, solid("#f7fbff"), { y: 1.1 });
+      if (theme.snowy) b.box(len, 0.08, 0.22, solid("#f7fbff"), { y: 1.1 });
     },
     towerHeight: 6,
-    buildTower: (b) => {
+    buildTower: (b, theme) => {
       b.cylinder(1.25, 1.4, 4.2, solid("#9aa3ad"), {}, 10);
       b.box(0.5, 0.7, 0.1, glow("#ffcf87", 1.8), { y: 2.8, z: 1.28 });
       b.cylinder(1.5, 1.5, 0.25, solid("#6b7280"), { y: 4.2 }, 10);
-      b.cone(1.7, 1.55, solid("#f7fbff"), { y: 4.45 }, 10);
+      b.cone(1.7, 1.55, solid(theme.snowy ? "#f7fbff" : "#8a4b2f"), { y: 4.45 }, 10);
     },
     postHeight: 3.6,
     buildPost: (b) => {
@@ -169,7 +170,7 @@ const STYLES: Record<ThemeId, BorderStyle> = {
   },
 
   // Boardwalk posts with sagging ropes, life rings and tiki torches.
-  beach: {
+  rope: {
     segment: 3.2,
     segmentHeight: 1.25,
     buildSegment: (b, len) => {
@@ -200,100 +201,140 @@ const STYLES: Record<ThemeId, BorderStyle> = {
     postEvery: 6,
     palette: (t) => t.palette.accent,
   },
+
+  // Stone rampart with battlements, round corner towers and banners.
+  stone: {
+    segment: 4,
+    segmentHeight: 2.75,
+    buildSegment: (b, len, theme) => {
+      const stone = theme.lighting.night > 0.5 ? "#4a4d5c" : "#a9a59c";
+      const dark = theme.lighting.night > 0.5 ? "#3a3d4a" : "#8f8b82";
+      b.box(len, 2.1, 0.9, solid(stone));
+      b.box(len, 0.16, 1.05, solid(dark), { y: 2.1 });
+      const merlons = Math.max(2, Math.round(len / 1.3));
+      const w = len / merlons;
+      for (let i = 0; i < merlons; i += 2) b.box(w, 0.5, 0.36, solid(stone), { x: -len / 2 + w * (i + 0.5), y: 2.26, z: 0.34 });
+      b.box(0.3, 1.1, 0.06, solid(dark), { y: 0.6, z: 0.46 });
+    },
+    towerHeight: 9.5,
+    buildTower: (b, theme) => {
+      const stone = theme.lighting.night > 0.5 ? "#4a4d5c" : "#b1ada4";
+      b.cylinder(1.9, 2.1, 6.4, solid(stone), {}, 12);
+      b.cylinder(2.2, 2.2, 0.5, solid(theme.lighting.night > 0.5 ? "#3a3d4a" : "#8f8b82"), { y: 6.4 }, 12);
+      b.box(0.5, 0.9, 0.1, glow("#ffcf87", 1.8), { y: 4.2, z: 1.95 });
+      b.cone(2.3, 2.6, paint(0.15), { y: 6.9 }, 12);
+    },
+    postHeight: 5.2,
+    buildPost: (b) => {
+      b.cylinder(0.07, 0.09, 5.2, solid("#5b4636"), {}, 7);
+      b.box(1.1, 1.7, 0.05, paint(0.3), { x: 0.6, y: 3.3 });
+      b.cone(0.14, 0.3, glow("#ffb347", 2), { y: 4.95 }, 6);
+    },
+    postEvery: 6,
+    palette: (t) => t.palette.accent,
+  },
 };
 
 const matrix = new Matrix4();
 const quat = new Quaternion();
 const up = new Vector3(0, 1, 0);
 const pos = new Vector3();
-const one = new Vector3(1, 1, 1);
+const scale = new Vector3(1, 1, 1);
 const color = new Color();
 
-function instanced(geometry: ReturnType<ModelBuilder["build"]>, material: Material, count: number, shadows: boolean) {
-  const mesh = new InstancedMesh(geometry, material, count);
-  mesh.castShadow = shadows;
-  mesh.receiveShadow = shadows;
-  mesh.frustumCulled = false;
-  return mesh;
+interface Placed {
+  x: number;
+  y: number;
+  z: number;
+  rot: number;
+  stretch: number;
+  color: string | null;
 }
 
-export function createBorder(half: number, theme: ThemeDef, material: Material, shadows: boolean) {
-  const style = STYLES[theme.id];
-  const edge = half + CITY.borderOffset;
-  const side = edge * 2;
-  const perSide = Math.max(4, Math.round(side / style.segment));
-  const length = side / perSide;
+/** Instanced meshes for `items`, one per map chunk so off-screen stretches of fence aren't drawn. */
+function instanced(geometry: ReturnType<ModelBuilder["build"]>, material: Material, items: readonly Placed[], shadows: boolean) {
+  const chunks = new Map<string, Placed[]>();
+  for (const item of items) {
+    const key = chunkOf(item.x, item.z);
+    chunks.set(key, [...(chunks.get(key) ?? []), item]);
+  }
+  return [...chunks.values()].map((members) => {
+    const mesh = new InstancedMesh(geometry, material, members.length);
+    mesh.castShadow = shadows;
+    mesh.receiveShadow = shadows;
+    members.forEach((item, i) => {
+      quat.setFromAxisAngle(up, item.rot);
+      matrix.compose(pos.set(item.x, item.y, item.z), quat, scale.set(item.stretch, 1, 1));
+      mesh.setMatrixAt(i, matrix);
+      if (item.color) mesh.setColorAt(i, color.set(item.color));
+    });
+    enableCulling(mesh);
+    return mesh;
+  });
+}
+
+export function createBorder(halfX: number, halfZ: number, theme: ThemeDef, material: Material, shadows: boolean) {
+  const style = STYLES[theme.border];
+  const edgeX = halfX + CITY.borderOffset;
+  const edgeZ = halfZ + CITY.borderOffset;
+  // The segment model is fitted to the sides along X; the other two stretch it slightly.
+  const length = (edgeX * 2) / Math.max(4, Math.round((edgeX * 2) / style.segment));
   const palette = style.palette(theme);
   const group = new Group();
   group.name = "border";
 
   // Sides: inward-facing rotation and a function mapping distance along the side to a point.
   const sides = [
-    { rot: 0, at: (s: number) => [-edge + s, -edge] },
-    { rot: Math.PI, at: (s: number) => [edge - s, edge] },
-    { rot: Math.PI / 2, at: (s: number) => [-edge, edge - s] },
-    { rot: -Math.PI / 2, at: (s: number) => [edge, -edge + s] },
+    { rot: 0, span: edgeX * 2, at: (s: number) => [-edgeX + s, -edgeZ] },
+    { rot: Math.PI, span: edgeX * 2, at: (s: number) => [edgeX - s, edgeZ] },
+    { rot: Math.PI / 2, span: edgeZ * 2, at: (s: number) => [-edgeX, edgeZ - s] },
+    { rot: -Math.PI / 2, span: edgeZ * 2, at: (s: number) => [edgeX, -edgeZ + s] },
   ] as const;
+  const counts = sides.map((s) => Math.max(4, Math.round(s.span / length)));
 
-  const segBuilder = new ModelBuilder();
-  style.buildSegment(segBuilder, length);
-  const segments = instanced(segBuilder.build(style.segmentHeight), material, perSide * 4, shadows);
-  const postSlots: { x: number; z: number; rot: number }[] = [];
-  let index = 0;
-  for (const s of sides) {
+  const segmentItems: Placed[] = [];
+  const postItems: Placed[] = [];
+  for (const [sideIndex, s] of sides.entries()) {
+    const perSide = counts[sideIndex];
+    const step = s.span / perSide;
     for (let i = 0; i < perSide; i++) {
-      const [x, z] = s.at(length * (i + 0.5));
-      quat.setFromAxisAngle(up, s.rot);
-      matrix.compose(pos.set(x, style.segmentHeight / 2, z), quat, one);
-      segments.setMatrixAt(index, matrix);
-      if (palette) segments.setColorAt(index, color.set(palette[(index * 7) % palette.length]));
-      index++;
+      const [x, z] = s.at(step * (i + 0.5));
+      const index = segmentItems.length;
+      segmentItems.push({ x, y: style.segmentHeight / 2, z, rot: s.rot, stretch: step / length, color: palette ? palette[(index * 7) % palette.length] : null });
       if (i > 1 && i < perSide - 1 && i % style.postEvery === 0) {
-        const [px, pz] = s.at(length * i);
-        postSlots.push({ x: px, z: pz, rot: s.rot });
+        // Posts stand just inside the fence line so they don't intersect it.
+        const [px, pz] = s.at(step * i);
+        const n = postItems.length;
+        postItems.push({ x: px + Math.sin(s.rot) * 0.55, y: style.postHeight / 2, z: pz + Math.cos(s.rot) * 0.55, rot: s.rot, stretch: 1, color: palette ? palette[(n * 3 + 1) % palette.length] : null });
       }
     }
   }
-  group.add(segments);
+  const towerItems: Placed[] = [
+    [-edgeX, -edgeZ],
+    [edgeX, -edgeZ],
+    [edgeX, edgeZ],
+    [-edgeX, edgeZ],
+    // Towers face the city center.
+  ].map(([x, z], i) => ({ x, y: style.towerHeight / 2, z, rot: Math.atan2(-x, -z), stretch: 1, color: palette ? palette[i % palette.length] : null }));
 
-  const postBuilder = new ModelBuilder();
-  style.buildPost(postBuilder);
-  const posts = instanced(postBuilder.build(style.postHeight), material, Math.max(1, postSlots.length), shadows);
-  postSlots.forEach((p, i) => {
-    quat.setFromAxisAngle(up, p.rot);
-    // Posts stand just inside the fence line so they don't intersect it.
-    const inward = new Vector3(0, 0, 0.55).applyQuaternion(quat);
-    matrix.compose(pos.set(p.x + inward.x, style.postHeight / 2, p.z + inward.z), quat, one);
-    posts.setMatrixAt(i, matrix);
-    if (palette) posts.setColorAt(i, color.set(palette[(i * 3 + 1) % palette.length]));
-  });
-  posts.count = postSlots.length;
-  group.add(posts);
-
-  const towerBuilder = new ModelBuilder();
-  style.buildTower(towerBuilder);
-  const towers = instanced(towerBuilder.build(style.towerHeight), material, 4, shadows);
-  [
-    [-edge, -edge],
-    [edge, -edge],
-    [edge, edge],
-    [-edge, edge],
-  ].forEach(([x, z], i) => {
-    // Face the city center.
-    quat.setFromAxisAngle(up, Math.atan2(-x, -z));
-    matrix.compose(pos.set(x, style.towerHeight / 2, z), quat, one);
-    towers.setMatrixAt(i, matrix);
-    if (palette) towers.setColorAt(i, color.set(palette[i % palette.length]));
-  });
-  group.add(towers);
+  const build = (fn: (b: ModelBuilder) => void, height: number) => {
+    const builder = new ModelBuilder();
+    fn(builder);
+    return builder.build(height);
+  };
+  const geometries = [
+    build((b) => style.buildSegment(b, length, theme), style.segmentHeight),
+    build((b) => style.buildPost(b), style.postHeight),
+    build((b) => style.buildTower(b, theme), style.towerHeight),
+  ];
+  const meshes = [segmentItems, postItems, towerItems].flatMap((items, i) => instanced(geometries[i], material, items, shadows));
+  group.add(...meshes);
 
   return {
     group,
     dispose() {
-      for (const mesh of [segments, posts, towers]) {
-        mesh.geometry.dispose();
-        mesh.dispose();
-      }
+      for (const geometry of geometries) geometry.dispose();
+      for (const mesh of meshes) mesh.dispose();
     },
   };
 }

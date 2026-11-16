@@ -158,6 +158,15 @@ function Minimap({ hud }: { hud: HudSnapshot }) {
     ctx.stroke();
     const pad = 10;
     const scale = (size - pad * 2) / 2;
+    // The playable area: long maps are a strip inside the square.
+    const [bx, bz] = hud.mapBounds;
+    if (bx < 0.99 || bz < 0.99) {
+      ctx.fillStyle = "rgba(255,255,255,0.1)";
+      ctx.beginPath();
+      ctx.roundRect(pad + (1 - bx) * scale, pad + (1 - bz) * scale, bx * scale * 2, bz * scale * 2, 6);
+      ctx.fill();
+      ctx.stroke();
+    }
     for (const p of hud.pickups) ctx.drawImage(powerUpBadge(p.kind), pad + (p.x + 1) * scale - 7, pad + (p.z + 1) * scale - 7, 14, 14);
     for (const dot of hud.minimap) {
       if (!dot.alive) continue;

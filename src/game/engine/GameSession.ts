@@ -73,6 +73,13 @@ const MOBILE_MIN_FRAME_MS = 1000 / 90 - 1.5;
 /** Adaptive resolution never renders blurrier than this many pixels per CSS pixel. */
 const MIN_PIXEL_RATIO = 0.7;
 
+/**
+ * What adaptive resolution settled on, per quality preset. Every match (and the menu
+ * demo) is a new session; without this each one would start at full resolution and
+ * stutter for a few seconds on a device that can't hold it.
+ */
+const settledPerformance = new Map<QualityLevel, { scale: number; ceiling: number; lightShadows: boolean }>();
+
 /** Creates the WebGL renderer once per canvas (reused across sessions). */
 export function createRenderer(canvas: HTMLCanvasElement, quality: QualityLevel) {
   const q = qualitySettings(quality);
@@ -150,6 +157,10 @@ export class GameSession {
   private readonly quality: QualitySettings;
   private resolutionScale = 1;
   private resolutionCeiling = 1;
+  /** Shadows redrawn at ~30 Hz instead of every frame: the first thing given up when frames run slow. */
+  private lightShadows = false;
+  private overlayWidth = 1;
+  private overlayHeight = 1;
   private perfWarmup = 2;
   private perfTime = 0;
   private perfFrames = 0;
@@ -206,11 +217,18 @@ export class GameSession {
 
     this.featuredId = this.isDemo ? 0 : null;
     this.quality = qualitySettings(options.quality);
+    const settled = settledPerformance.get(options.quality);
+    if (settled) {
+      this.resolutionScale = settled.scale;
+      this.resolutionCeiling = settled.ceiling;
+      this.lightShadows = settled.lightShadows;
+    }
     this.view = new SceneView(renderer, this.world, {
       quality: this.quality,
       overlay: options.overlay,
       focusId: this.playerId,
     });
+    if (this.lightShadows) this.view.shadowInterval = 1 / 31;
     this.input = this.isDemo ? null : new HumanInput(options.overlay);
     if (!this.isDemo && options.recordClips && ClipRecorder.supported) {
       this.recorder = new ClipRecorder(options.canvas, isMobileDevice() ? 854 : 1280, audio);
@@ -279,6 +297,9 @@ export class GameSession {
     const base = Math.min(window.devicePixelRatio || 1, this.quality.maxPixelRatio);
     const ratio = Math.max(Math.min(base, MIN_PIXEL_RATIO), base * this.resolutionScale);
     this.view.resize(width, height, ratio);
+    const overlay = this.options.overlay.getBoundingClientRect();
+    this.overlayWidth = overlay.width;
+    this.overlayHeight = overlay.height;
   }
 
   /** Fraction of the full resolution currently rendered (adaptive resolution). */
@@ -314,9 +335,15 @@ export class GameSession {
 
     const base = Math.min(window.devicePixelRatio || 1, this.quality.maxPixelRatio);
     const minScale = Math.min(1, Math.max(0.45, MIN_PIXEL_RATIO / base));
-    if (fps < 45 && this.resolutionScale > minScale) {
+    if (fps < 50 && !this.lightShadows && this.quality.shadows) {
+      // Cheapest fix first: it is invisible, and often enough on its own.
+      this.lightShadows = true;
+      this.view.shadowInterval = 1 / 31;
+      this.rememberPerformance();
+    } else if (fps < 45 && this.resolutionScale > minScale) {
       this.resolutionCeiling = Math.max(minScale, this.resolutionScale - 0.05);
-      this.setResolutionScale(Math.max(minScale, this.resolutionScale - 0.15));
+      // Far below target: take a big step so it doesn't lag for seconds on the way down.
+      this.setResolutionScale(Math.max(minScale, this.resolutionScale - (fps < 30 ? 0.3 : 0.15)));
     } else if (fps > 56 && this.resolutionScale < this.resolutionCeiling) {
       if (++this.perfSmoothFor >= 5) this.setResolutionScale(Math.min(this.resolutionCeiling, this.resolutionScale + 0.1));
     } else {
@@ -327,7 +354,12 @@ export class GameSession {
   private setResolutionScale(scale: number) {
     this.resolutionScale = scale;
     this.perfSmoothFor = 0;
+    this.rememberPerformance();
     this.resize();
+  }
+
+  private rememberPerformance() {
+    settledPerformance.set(this.options.quality, { scale: this.resolutionScale, ceiling: this.resolutionCeiling, lightShadows: this.lightShadows });
   }
 
   /** Menu helpers: preview a skin on the featured demo hole. */
@@ -357,7 +389,8 @@ export class GameSession {
   private tick(dt: number) {
     if (!this.paused) {
       this.simulate(dt, 5);
-      this.view.update(dt);
+      // Frames rarely line up with simulation steps: draw holes part-way between the last two.
+      this.view.update(dt, Math.min(1, this.accumulator / FIXED_DT));
       this.updatePopups(dt);
       this.updateProximity(dt);
     }
@@ -420,11 +453,14 @@ export class GameSession {
   }
 
   private step() {
+    for (const hole of this.world.holes) {
+      hole.prevX = hole.x;
+      hole.prevZ = hole.z;
+    }
     const player = this.playerId !== null ? this.world.holes[this.playerId] : null;
     if (player && this.input) {
       this.screenPos.set(player.x, 0, player.z).project(this.view.rig.camera);
-      const rect = this.options.overlay.getBoundingClientRect();
-      this.input.setOrigin((this.screenPos.x * 0.5 + 0.5) * rect.width, (-this.screenPos.y * 0.5 + 0.5) * rect.height);
+      this.input.setOrigin((this.screenPos.x * 0.5 + 0.5) * this.overlayWidth, (-this.screenPos.y * 0.5 + 0.5) * this.overlayHeight);
       const { x, z, throttle } = this.input.read();
       player.input.x = x;
       player.input.z = z;
@@ -590,6 +626,7 @@ export class GameSession {
       combo: player?.combo ?? 0,
       leaderboard: this.leaderboard(),
       minimap: w.holes.map((h) => ({ x: h.x / w.half, z: h.z / w.half, r: h.radius / w.half, skinId: h.skinId, isPlayer: h.isPlayer, alive: h.alive, team: h.team })),
+      mapBounds: [w.halfX / w.half, w.halfZ / w.half],
       pickups: w.powerUps.map((p) => ({ x: p.x / w.half, z: p.z / w.half, kind: p.kind })),
       powers: player?.alive ? POWER_UP_KINDS.flatMap((kind, i) => (player.powers[i] > 0 ? [{ kind, left: player.powers[i] }] : [])) : [],
       teams: this.teamStatus(),
@@ -615,6 +652,7 @@ export class GameSession {
         biggestBite: s.biggestBite,
       });
     });
+    this.world.invalidateStandings();
   }
 
   private finish() {

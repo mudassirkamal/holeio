@@ -6,7 +6,7 @@ import type { GameEvent } from "../core/events";
 import type { World } from "../core/World";
 
 /** Bump when the wire format changes; mismatched peers are rejected. */
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 export interface PlayerProfile {
   name: string;
